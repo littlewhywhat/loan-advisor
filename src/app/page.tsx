@@ -24,6 +24,7 @@ export default function Home() {
     const res = computeResults({
       monthlyRent: values.monthlyRent,
       cash: values.cash,
+      monthlySavings: values.monthlySavings,
       years: yrs,
       loanTerm: term,
       interestRate: rate / 100,

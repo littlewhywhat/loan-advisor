@@ -6,12 +6,14 @@ import { Button, Flex, Select, Text, TextField } from '@radix-ui/themes';
 export interface InputValues {
   monthlyRent: number;
   cash: number;
+  monthlySavings: number;
   city: string;
 }
 
 const defaults = {
   monthlyRent: 20000,
   cash: 1000000,
+  monthlySavings: 15000,
 };
 
 interface Props {
@@ -21,12 +23,14 @@ interface Props {
 export default function InputForm({ onCalculate }: Props) {
   const [monthlyRent, setMonthlyRent] = useState('');
   const [cash, setCash] = useState('');
+  const [savings, setSavings] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onCalculate({
       monthlyRent: monthlyRent ? Number(monthlyRent) : defaults.monthlyRent,
       cash: cash ? Number(cash) : defaults.cash,
+      monthlySavings: savings ? Number(savings) : defaults.monthlySavings,
       city: 'Prague',
     });
   };
@@ -45,6 +49,21 @@ export default function InputForm({ onCalculate }: Props) {
             value={monthlyRent}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setMonthlyRent(e.target.value)
+            }
+          />
+        </div>
+
+        <div>
+          <Text as="label" htmlFor="savings">
+            Monthly Savings (CZK)
+          </Text>
+          <TextField.Root
+            id="savings"
+            type="number"
+            placeholder={String(defaults.monthlySavings)}
+            value={savings}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setSavings(e.target.value)
             }
           />
         </div>

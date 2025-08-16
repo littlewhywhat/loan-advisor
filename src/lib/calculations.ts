@@ -33,13 +33,24 @@ export interface CalculationResult {
 export function computeResults(params: {
   monthlyRent: number;
   cash: number;
+  monthlySavings: number;
   years: number;
   loanTerm: number;
   interestRate: number;
 }): CalculationResult {
-  const { monthlyRent, cash, years, loanTerm, interestRate } = params;
+  const { monthlyRent, cash, monthlySavings, years, loanTerm, interestRate } =
+    params;
 
-  const loan = (monthlyRent * 12) / interestRate;
+  const monthlyRate = interestRate / 12;
+  const rateFactor = monthlyRate
+    ? monthlyRate / (1 - Math.pow(1 + monthlyRate, -loanTerm * 12))
+    : 1 / (loanTerm * 12);
+  const netRentPerM2 = RENT_PER_M2 * (1 - OPERATING_COST_RATE) * (1 - TAX_RATE);
+  const alpha = netRentPerM2 / PRICE_PER_M2;
+  const denominator = rateFactor - alpha;
+  const loan =
+    denominator > 0 ? (monthlySavings + alpha * cash) / denominator : 0;
+
   const flatBudget = loan + cash;
   const flatSize = flatBudget / PRICE_PER_M2;
 
@@ -48,11 +59,7 @@ export function computeResults(params: {
   const afterCost = rentIncomeGross - costs;
   const tax = afterCost * TAX_RATE;
   const rentIncomeNet = afterCost - tax;
-  const monthlyRate = interestRate / 12;
-  const monthlyPayment = monthlyRate
-    ? (loan * monthlyRate) /
-      (1 - Math.pow(1 + monthlyRate, -loanTerm * 12))
-    : loan / (loanTerm * 12);
+  const monthlyPayment = loan * rateFactor;
   const expenseDuringPeriod = monthlyPayment + monthlyRent - rentIncomeNet;
   const totalInterest = monthlyPayment * loanTerm * 12 - loan;
   const paidInterest = Math.min(expenseDuringPeriod * 12 * years, totalInterest);
