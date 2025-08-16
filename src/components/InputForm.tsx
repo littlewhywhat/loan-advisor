@@ -7,13 +7,11 @@ export interface InputValues {
   monthlyRent: number;
   cash: number;
   city: string;
-  loanTerm: number;
 }
 
 const defaults = {
   monthlyRent: 20000,
   cash: 1000000,
-  loanTerm: 20,
 };
 
 interface Props {
@@ -23,7 +21,6 @@ interface Props {
 export default function InputForm({ onCalculate }: Props) {
   const [monthlyRent, setMonthlyRent] = useState('');
   const [cash, setCash] = useState('');
-  const [loanTerm, setLoanTerm] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +28,6 @@ export default function InputForm({ onCalculate }: Props) {
       monthlyRent: monthlyRent ? Number(monthlyRent) : defaults.monthlyRent,
       cash: cash ? Number(cash) : defaults.cash,
       city: 'Prague',
-      loanTerm: loanTerm ? Number(loanTerm) : defaults.loanTerm,
     });
   };
 
@@ -77,22 +73,6 @@ export default function InputForm({ onCalculate }: Props) {
             }
           />
         </div>
-
-        <div>
-          <Text as="label" htmlFor="loanTerm">
-            Loan Term (years)
-          </Text>
-          <TextField.Root
-            id="loanTerm"
-            type="number"
-            placeholder={String(defaults.loanTerm)}
-            value={loanTerm}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setLoanTerm(e.target.value)
-            }
-          />
-        </div>
-
         <Button type="submit">Calculate</Button>
         <Text size="1" color="gray">
           Defaults are used if fields are left blank.

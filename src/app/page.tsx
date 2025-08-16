@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Flex } from '@radix-ui/themes';
 import InputForm, { InputValues } from '@/components/InputForm';
 import ResultsDisplay from '@/components/ResultsDisplay';
+import LoanTermInput from '@/components/LoanTermInput';
 import YearSlider from '@/components/YearSlider';
 import MilestoneMessage from '@/components/MilestoneMessage';
 import { CalculationResult, computeResults } from '@/lib/calculations';
@@ -11,6 +12,7 @@ import { CalculationResult, computeResults } from '@/lib/calculations';
 export default function Home() {
   const [input, setInput] = useState<InputValues | null>(null);
   const [years, setYears] = useState(3);
+  const [loanTerm, setLoanTerm] = useState(10);
   const [results, setResults] = useState<CalculationResult | null>(null);
 
   const handleCalculate = (values: InputValues) => {
@@ -19,7 +21,7 @@ export default function Home() {
       monthlyRent: values.monthlyRent,
       cash: values.cash,
       years,
-      loanTerm: values.loanTerm,
+      loanTerm,
     });
     setResults(res);
   };
@@ -31,7 +33,20 @@ export default function Home() {
         monthlyRent: input.monthlyRent,
         cash: input.cash,
         years: v,
-        loanTerm: input.loanTerm,
+        loanTerm,
+      });
+      setResults(res);
+    }
+  };
+
+  const handleLoanTermChange = (v: number) => {
+    setLoanTerm(v);
+    if (input) {
+      const res = computeResults({
+        monthlyRent: input.monthlyRent,
+        cash: input.cash,
+        years,
+        loanTerm: v,
       });
       setResults(res);
     }
@@ -43,6 +58,7 @@ export default function Home() {
       {results && (
         <>
           <ResultsDisplay results={results} />
+          <LoanTermInput loanTerm={loanTerm} onChange={handleLoanTermChange} />
           <YearSlider years={years} onChange={handleYearsChange} />
           <MilestoneMessage years={years} metrics={results.milestone} />
         </>
