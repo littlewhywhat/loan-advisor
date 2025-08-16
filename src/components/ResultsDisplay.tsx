@@ -19,7 +19,8 @@ export default function ResultsDisplay({
   onLoanTermChange,
   onInterestRateChange,
 }: Props) {
-  const { flatBudget, flatSize, loan, rentIncome, monthlyPayment } = results;
+  const { flatBudget, flatSize, loan, rentIncome, monthlyPayment, milestone } =
+    results;
   const [rentExpanded, setRentExpanded] = useState(false);
   const [loanExpanded, setLoanExpanded] = useState(false);
   return (
@@ -62,6 +63,7 @@ export default function ResultsDisplay({
               />
             </Flex>
             <Text>Monthly payment: {monthlyPayment.toFixed(0)} CZK</Text>
+            <Text>Total interest: {milestone.totalInterest.toFixed(0)} CZK</Text>
           </Flex>
         )}
       </Card>

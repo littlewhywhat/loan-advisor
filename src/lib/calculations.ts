@@ -53,15 +53,14 @@ export function computeResults(params: {
     ? (loan * monthlyRate) /
       (1 - Math.pow(1 + monthlyRate, -loanTerm * 12))
     : loan / (loanTerm * 12);
-
+  const expenseDuringPeriod = monthlyPayment + monthlyRent - rentIncomeNet;
   const totalInterest = monthlyPayment * loanTerm * 12 - loan;
-  const paidInterest = Math.min(monthlyPayment * 12 * years, totalInterest);
+  const paidInterest = Math.min(expenseDuringPeriod * 12 * years, totalInterest);
   const remainingInterest = Math.max(totalInterest - paidInterest, 0);
   const remainingYears = Math.max(loanTerm - years, 0);
   const monthlyInterestCost =
     remainingYears > 0 ? remainingInterest / (12 * remainingYears) : 0;
   const netToPrincipal = monthlyPayment - monthlyInterestCost;
-  const expenseDuringPeriod = monthlyPayment + monthlyRent - rentIncomeNet;
   const expenseAfterPeriod = monthlyRent - rentIncomeNet + monthlyInterestCost;
 
   return {
