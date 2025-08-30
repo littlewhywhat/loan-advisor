@@ -18,6 +18,7 @@ export default function ReverseCalculator({ currency }: ReverseCalculatorProps) 
   const [n, setN] = useState<number>(defaults.n);
   const [r, setR] = useState<number>(defaults.r);
   const [i, setI] = useState<number>(defaults.i);
+  const [period, setPeriod] = useState<'year' | 'month'>('year');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [yearsNote, setYearsNote] = useState<string>('');
 
@@ -86,12 +87,13 @@ export default function ReverseCalculator({ currency }: ReverseCalculatorProps) 
 
   const rDec = r / 100;
   const iDec = i / 100;
+  const AYear = period === 'month' ? A * 12 : A;
   const g = Math.pow(1 + rDec, n) / Math.pow(1 + iDec, n);
   const den = g - 1;
   let principal = 0;
   let resultError = '';
   if (den > 0 && A >= 0 && !errors.A && !errors.r && !errors.i) {
-    principal = (n * A) / den;
+    principal = (n * AYear) / den;
   } else if (den <= 0) {
     resultError =
       'Invalid parameters: effective growth is not above inflation over n years. Increase interest, reduce inflation, or increase years.';
@@ -106,14 +108,15 @@ export default function ReverseCalculator({ currency }: ReverseCalculatorProps) 
     handleN(defaults.n);
     handleR(defaults.r);
     handleI(defaults.i);
+    setPeriod('year');
   };
 
-  const formula = `P = ${n}·${A.toPrecision(6)} / ((1+${rDec.toPrecision(4)})^${n}/(1+${iDec.toPrecision(4)})^${n} - 1)`;
+  const formula = `P = ${n}·${AYear.toPrecision(6)} / ((1+${rDec.toPrecision(4)})^${n}/(1+${iDec.toPrecision(4)})^${n} - 1)`;
 
   return (
     <div className="card" style={{ maxWidth: 600 }}>
       <div className="input-group">
-        <label htmlFor="A">Target avg real per year</label>
+        <label htmlFor="A">Target avg real</label>
         <input
           id="A"
           type="number"
@@ -122,6 +125,14 @@ export default function ReverseCalculator({ currency }: ReverseCalculatorProps) 
           onChange={(e) => handleA(Number(e.target.value))}
           aria-describedby="A-error"
         />
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as 'year' | 'month')}
+          aria-label="period"
+        >
+          <option value="year">per year</option>
+          <option value="month">per month</option>
+        </select>
         {errors.A && (
           <div id="A-error" className="error">
             {errors.A}
@@ -183,7 +194,7 @@ export default function ReverseCalculator({ currency }: ReverseCalculatorProps) 
         {resultError && <div className="error">{resultError}</div>}
       </div>
       <div className="formula">{formula}</div>
-      <div className="reference">P: principal, A: target avg real per year, n: years, r: interest, i: inflation</div>
+      <div className="reference">P: principal, A: target avg real per {period}, n: years, r: interest, i: inflation</div>
       <div className="buttons">
         <button type="button" onClick={reset}>
           Reset

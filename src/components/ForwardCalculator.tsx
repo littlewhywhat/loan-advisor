@@ -75,13 +75,14 @@ export default function ForwardCalculator({ currency, onCurrencyChange }: Forwar
   const nominal = valid ? principal * Math.pow(1 + rateDec, years) : 0;
   const real = valid ? nominal / Math.pow(1 + inflationDec, years) : 0;
   const avgReal = valid ? (real - principal) / years : 0;
+  const avgRealMonth = valid ? (real - principal) / (years * 12) : 0;
 
   const format = (n: number) => (
     <span title={n.toExponential(2)}>{formatter.format(n)}</span>
   );
 
   const copyResults = () => {
-    const text = `Principal: ${formatter.format(principal)}\nInterest: ${rate}%\nInflation: ${inflation}%\nYears: ${years}\nNominal: ${formatter.format(nominal)}\nReal: ${formatter.format(real)}\nAverage real per year: ${formatter.format(avgReal)}`;
+    const text = `Principal: ${formatter.format(principal)}\nInterest: ${rate}%\nInflation: ${inflation}%\nYears: ${years}\nNominal: ${formatter.format(nominal)}\nReal: ${formatter.format(real)}\nAverage real per year: ${formatter.format(avgReal)}\nAverage real per month: ${formatter.format(avgRealMonth)}`;
     navigator.clipboard.writeText(text).catch(() => {});
   };
 
@@ -215,11 +216,16 @@ export default function ForwardCalculator({ currency, onCurrencyChange }: Forwar
           <div className="stat">{format(avgReal)}</div>
           <div className="caption">Avg per year (real): (A_real - P)/t</div>
         </div>
+        <div className="input-group">
+          <div className="stat">{format(avgRealMonth)}</div>
+          <div className="caption">Avg per month (real): (A_real - P)/(t·12)</div>
+        </div>
         <details>
           <summary>Details</summary>
           <p className="formula">nominal = principal * (1 + r)^t</p>
           <p className="formula">real = nominal / (1 + i)^t</p>
-          <p className="formula">avg = (real - principal) / t</p>
+          <p className="formula">avgYear = (real - principal) / t</p>
+          <p className="formula">avgMonth = (real - principal) / (t * 12)</p>
         </details>
       </div>
     </div>
