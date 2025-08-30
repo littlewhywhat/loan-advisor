@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useFinancial, type Currency } from '@/store/FinancialContext';
 import styles from './LoanVsInvesting.module.css';
 import { Slider, Tooltip } from '@radix-ui/themes';
+import { computeSavingsBenchmark } from '@/lib/finance';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -40,10 +41,10 @@ function compute(
     rL > 0
       ? (principal * rL) / (1 - Math.pow(1 + rL, -totalMonths))
       : principal / totalMonths;
+  const benchmark = computeSavingsBenchmark(monthlyPayment, rS, horizon);
   let loanBalance = principal;
   let investBalance = principal;
   let totalAllowed = 0;
-  let cumRetained = 0;
   const schedule: ScheduleRow[] = [];
   for (let year = 1; year <= horizon; year++) {
     let loanInterestYear = 0;
@@ -55,11 +56,11 @@ function compute(
       loanInterestYear += interest;
       principalPaidYear += principalPaid;
     }
+    const savingInterest = benchmark.savingInterestYear[year - 1];
+    const cumRetained = benchmark.cumSavingInterest[year - 1];
     const lumpRaw = investBalance * rS;
-    const savingInterest = loanInterestYear;
     const allowed = Math.max(lumpRaw - savingInterest, 0);
     const retained = savingInterest;
-    cumRetained += retained;
     investBalance += retained;
     totalAllowed += allowed;
     schedule.push({
@@ -77,7 +78,7 @@ function compute(
   return {
     monthlyPayment,
     totalAllowed,
-    cumRetained,
+    cumRetained: benchmark.cumSavingInterest[benchmark.cumSavingInterest.length - 1] ?? 0,
     endBalance: loanBalance < 0 ? 0 : loanBalance,
     schedule,
   };
