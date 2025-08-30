@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import '@radix-ui/themes/styles.css';
 import { Theme } from '@radix-ui/themes';
 import './globals.css';
+import { FinancialProvider } from '@/store/FinancialContext';
 
 export const metadata: Metadata = {
   title: 'Real Compound Interest Calculator',
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <Theme>{children}</Theme>
+        <FinancialProvider>
+          <Theme>{children}</Theme>
+        </FinancialProvider>
       </body>
     </html>
   );

@@ -1,11 +1,5 @@
 import { useState, useMemo } from 'react';
-
-type Currency = 'CZK' | 'USD' | 'EUR';
-
-interface ForwardCalculatorProps {
-  currency: Currency;
-  onCurrencyChange: (c: Currency) => void;
-}
+import { useFinancial, type Currency } from '@/store/FinancialContext';
 
 const defaultVals = {
   principal: 100000,
@@ -14,12 +8,21 @@ const defaultVals = {
   years: 10,
 };
 
-export default function ForwardCalculator({ currency, onCurrencyChange }: ForwardCalculatorProps) {
-  const [principal, setPrincipal] = useState<number>(defaultVals.principal);
-  const [rate, setRate] = useState<number>(defaultVals.rate);
+export default function ForwardCalculator() {
+  const {
+    principal,
+    setPrincipal,
+    investAPR,
+    setInvestAPR,
+    termYears,
+    setTermYears,
+    currency,
+    setCurrency,
+  } = useFinancial();
   const [inflation, setInflation] = useState<number>(defaultVals.inflation);
-  const [years, setYears] = useState<number>(defaultVals.years);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const rate = investAPR;
+  const years = termYears;
 
   const formatter = useMemo(
     () =>
@@ -50,7 +53,7 @@ export default function ForwardCalculator({ currency, onCurrencyChange }: Forwar
     validate('principal', v);
   };
   const handleRate = (v: number) => {
-    setRate(v);
+    setInvestAPR(v);
     validate('rate', v);
   };
   const handleInflation = (v: number) => {
@@ -59,7 +62,7 @@ export default function ForwardCalculator({ currency, onCurrencyChange }: Forwar
   };
   const handleYears = (v: number) => {
     const clamped = Math.max(1, Math.min(30, Math.round(v)));
-    setYears(clamped);
+    setTermYears(clamped);
     validate('years', clamped);
   };
 
@@ -91,7 +94,7 @@ export default function ForwardCalculator({ currency, onCurrencyChange }: Forwar
     handleRate(defaultVals.rate);
     handleInflation(defaultVals.inflation);
     handleYears(defaultVals.years);
-    onCurrencyChange('CZK');
+    setCurrency('CZK');
   };
 
   return (
@@ -102,7 +105,7 @@ export default function ForwardCalculator({ currency, onCurrencyChange }: Forwar
           <select
             id="currency"
             value={currency}
-            onChange={(e) => onCurrencyChange(e.target.value as Currency)}
+            onChange={(e) => setCurrency(e.target.value as Currency)}
           >
             <option value="CZK">Kč</option>
             <option value="EUR">€</option>

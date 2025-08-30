@@ -1,10 +1,5 @@
 import { useState, useMemo } from 'react';
-
-type Currency = 'CZK' | 'USD' | 'EUR';
-
-interface ReverseCalculatorProps {
-  currency: Currency;
-}
+import { useFinancial } from '@/store/FinancialContext';
 
 const defaults = {
   A: 3325.59,
@@ -13,14 +8,22 @@ const defaults = {
   i: 3,
 };
 
-export default function ReverseCalculator({ currency }: ReverseCalculatorProps) {
+export default function ReverseCalculator() {
+  const {
+    investAPR,
+    setInvestAPR,
+    termYears,
+    setTermYears,
+    currency,
+    setPrincipal,
+  } = useFinancial();
   const [A, setA] = useState<number>(defaults.A);
-  const [n, setN] = useState<number>(defaults.n);
-  const [r, setR] = useState<number>(defaults.r);
   const [i, setI] = useState<number>(defaults.i);
   const [period, setPeriod] = useState<'year' | 'month'>('year');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [yearsNote, setYearsNote] = useState<string>('');
+  const n = termYears;
+  const r = investAPR;
 
   const formatter = useMemo(
     () =>
@@ -73,11 +76,11 @@ export default function ReverseCalculator({ currency }: ReverseCalculatorProps) 
       clamped = 30;
       note = 'Clamped to maximum 30';
     }
-    setN(clamped);
+    setTermYears(clamped);
     setYearsNote(note);
   };
   const handleR = (v: number) => {
-    setR(v);
+    setInvestAPR(v);
     validateRates('r', v);
   };
   const handleI = (v: number) => {
@@ -97,6 +100,9 @@ export default function ReverseCalculator({ currency }: ReverseCalculatorProps) 
   } else if (den <= 0) {
     resultError =
       'Invalid parameters: effective growth is not above inflation over n years. Increase interest, reduce inflation, or increase years.';
+  }
+  if (!resultError) {
+    setPrincipal(principal);
   }
 
   const format = (n: number) => (
