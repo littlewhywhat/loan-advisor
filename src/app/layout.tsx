@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import '@radix-ui/themes/styles.css';
 import { Theme } from '@radix-ui/themes';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Next.js Vercel Template',
-  description: 'Minimal template with Vercel CI/CD',
+  title: 'Real Compound Interest Calculator',
+  description:
+    'Compute nominal and inflation-adjusted compound interest and reverse calculate required principal.',
   icons: { icon: '/favicon.svg' },
 };
 
