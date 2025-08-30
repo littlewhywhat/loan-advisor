@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react';
 import { useFinancial, type Currency } from '@/store/FinancialContext';
 import styles from './LoanVsInvesting.module.css';
 import { Slider, Tooltip } from '@radix-ui/themes';
-// eslint-disable-next-line import/no-unresolved
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -13,7 +12,7 @@ import {
   Legend,
   Tooltip as RechartTooltip,
   CartesianGrid,
-} from 'recharts';
+} from '@/stubs/recharts';
 
 interface ScheduleRow {
   year: number;
