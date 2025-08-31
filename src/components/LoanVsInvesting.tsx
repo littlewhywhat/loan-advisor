@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useFinancial, type Currency } from '@/store/FinancialContext';
 import styles from './LoanVsInvesting.module.css';
 import { Slider, Tooltip } from '@radix-ui/themes';
-import { computeSavingsBenchmark } from '@/lib/finance';
+import { payment, savingsBenchmark, lumpWithWithdrawals } from '@/lib/finance';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -34,51 +34,41 @@ function compute(
   investAPR: number,
   horizon: number,
 ) {
-  const rL = loanAPR / 100 / 12;
-  const rS = investAPR / 100;
-  const totalMonths = termYears * 12;
-  const monthlyPayment =
-    rL > 0
-      ? (principal * rL) / (1 - Math.pow(1 + rL, -totalMonths))
-      : principal / totalMonths;
-  const benchmark = computeSavingsBenchmark(monthlyPayment, rS, horizon);
-  let loanBalance = principal;
-  let investBalance = principal;
-  let totalAllowed = 0;
+  const rLAnnual = loanAPR / 100;
+  const rSAnnual = investAPR / 100;
+  const monthlyPayment = payment(principal, rLAnnual, termYears);
+  const benchmark = savingsBenchmark(monthlyPayment, rSAnnual, horizon);
+  const lump = lumpWithWithdrawals(principal, rSAnnual, horizon, benchmark.savingInterestYear);
   const schedule: ScheduleRow[] = [];
+  let loanBalance = principal;
+  const rLMonthly = rLAnnual / 12;
   for (let year = 1; year <= horizon; year++) {
     let loanInterestYear = 0;
     let principalPaidYear = 0;
     for (let m = 0; m < 12; m++) {
-      const interest = loanBalance * rL;
+      const interest = loanBalance * rLMonthly;
       const principalPaid = monthlyPayment - interest;
       loanBalance -= principalPaid;
       loanInterestYear += interest;
       principalPaidYear += principalPaid;
     }
-    const savingInterest = benchmark.savingInterestYear[year - 1];
-    const cumRetained = benchmark.cumSavingInterest[year - 1];
-    const lumpRaw = investBalance * rS;
-    const allowed = Math.max(lumpRaw - savingInterest, 0);
-    const retained = savingInterest;
-    investBalance += retained;
-    totalAllowed += allowed;
     schedule.push({
       year,
-      savingInterest,
-      lumpRaw,
-      allowed,
-      retained,
-      cumRetained,
+      savingInterest: benchmark.savingInterestYear[year - 1],
+      lumpRaw: lump.lumpRawInterestYear[year - 1],
+      allowed: lump.allowedWithdrawalYear[year - 1],
+      retained: lump.retainedYear[year - 1],
+      cumRetained: lump.cumRetained[year - 1],
       loanInterest: loanInterestYear,
       principalPaid: principalPaidYear,
       balance: loanBalance < 0 ? 0 : loanBalance,
     });
   }
+  const totalAllowed = lump.allowedWithdrawalYear.reduce((a, b) => a + b, 0);
   return {
     monthlyPayment,
     totalAllowed,
-    cumRetained: benchmark.cumSavingInterest[benchmark.cumSavingInterest.length - 1] ?? 0,
+    cumRetained: lump.cumRetained[lump.cumRetained.length - 1] ?? 0,
     endBalance: loanBalance < 0 ? 0 : loanBalance,
     schedule,
   };
