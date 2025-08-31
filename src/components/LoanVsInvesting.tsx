@@ -73,6 +73,7 @@ function compute(
   return {
     monthlyPayment,
     totalAllowed,
+    avgMonthlyWithdrawal: totalAllowed / (horizon * 12),
     cumRetained: lump.cumRetained[lump.cumRetained.length - 1] ?? 0,
     endBalance: loanBalance < 0 ? 0 : loanBalance,
     schedule,
@@ -176,6 +177,10 @@ export default function LoanVsInvesting() {
           <div className={styles.metric}>
             <div>{format(calc.totalAllowed)}</div>
             <div>Total allowed withdrawals</div>
+          </div>
+          <div className={styles.metric}>
+            <div>{format(calc.avgMonthlyWithdrawal)}</div>
+            <div>Avg monthly withdrawal</div>
           </div>
           <div className={styles.metric}>
             <div>{format(calc.cumRetained)}</div>
