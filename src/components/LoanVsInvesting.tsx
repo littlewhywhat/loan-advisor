@@ -143,6 +143,7 @@ export default function LoanVsInvesting() {
         <label>
           Term (years)
           <input type="number" value={termYears} onChange={(e) => handleTerm(Number(e.target.value))} />
+          <Slider value={[termYears]} max={30} min={1} step={1} onValueChange={(v: number[]) => handleTerm(v[0])} />
         </label>
         <label>
           Investment APR (%)
