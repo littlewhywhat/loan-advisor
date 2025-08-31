@@ -18,6 +18,7 @@ import {
 interface ScheduleRow {
   year: number;
   savingInterest: number;
+  cumSavingInterest: number;
   lumpRaw: number;
   allowed: number;
   retained: number;
@@ -37,11 +38,12 @@ function compute(
   const rLAnnual = loanAPR / 100;
   const rSAnnual = investAPR / 100;
   const monthlyPayment = payment(principal, rLAnnual, termYears);
-  const benchmark = savingsBenchmark(monthlyPayment, rSAnnual, horizon);
-  const lump = lumpWithWithdrawals(principal, rSAnnual, horizon, benchmark.savingInterestYear);
+  const { savingInterestYear } = savingsBenchmark(monthlyPayment, rSAnnual, horizon);
+  const lump = lumpWithWithdrawals(principal, rSAnnual, horizon, savingInterestYear);
   const schedule: ScheduleRow[] = [];
   let loanBalance = principal;
   const rLMonthly = rLAnnual / 12;
+  let cumSavingInterest = 0;
   for (let year = 1; year <= horizon; year++) {
     let loanInterestYear = 0;
     let principalPaidYear = 0;
@@ -52,9 +54,12 @@ function compute(
       loanInterestYear += interest;
       principalPaidYear += principalPaid;
     }
+    const savingInt = savingInterestYear[year - 1];
+    cumSavingInterest += savingInt;
     schedule.push({
       year,
-      savingInterest: benchmark.savingInterestYear[year - 1],
+      savingInterest: savingInt,
+      cumSavingInterest,
       lumpRaw: lump.lumpRawInterestYear[year - 1],
       allowed: lump.allowedWithdrawalYear[year - 1],
       retained: lump.retainedYear[year - 1],
@@ -201,6 +206,7 @@ export default function LoanVsInvesting() {
             <tr>
               <th>Year</th>
               <th>Saving interest</th>
+              <th>Cum saving interest</th>
               <th>Lump raw interest</th>
               <th>Allowed withdrawal</th>
               <th>Retained</th>
@@ -215,6 +221,7 @@ export default function LoanVsInvesting() {
               <tr key={row.year}>
                 <td>{row.year}</td>
                 <td>{format(row.savingInterest)}</td>
+                <td>{format(row.cumSavingInterest)}</td>
                 <td>{format(row.lumpRaw)}</td>
                 <td>{format(row.allowed)}</td>
                 <td>{format(row.retained)}</td>
