@@ -1,30 +1,36 @@
-# Next.js Vercel CI Template
+# SPA Web App
 
-Minimal Next.js 15 (App Router, TypeScript, Radix UI) starter with preview and production deployments on Vercel.
+Minimal Vite SPA starter (React, TypeScript, Radix UI, Hono API) for vibe coding and rapid prototyping. Deployed on Vercel.
+
+## Stack
+
+- **Frontend**: Vite, React, React Router, Radix UI Themes
+- **Backend**: Hono (serverless on Vercel)
+- **Tooling**: pnpm, ESLint, Prettier, TypeScript
 
 ## Prerequisites
 
-- Node 20
-- npm
+- Node 22
+- pnpm
 
 ## Development
 
 ```bash
-cp .env.example .env.local
-npm install
-npm run dev
+cp .env.example .env
+pnpm install
+vercel dev
 ```
 
-Home page shows an environment badge and links to the health check at `/api/health`.
+`vercel dev` runs the Vite dev server and Hono API together. Use `/api/health` as a sanity check.
 
 ## CI/CD
 
 GitHub Actions deploys automatically:
 
-- **Preview**: on every pull request, comments the preview URL.
-- **Production**: on pushes to `main`, writes the production URL to the job summary.
+- **Preview**: on every pull request, comments the preview URL
+- **Production**: on pushes to `main`, writes the production URL to the job summary
 
-Add these repository secrets before running the workflows:
+Add these repository secrets:
 
 - `VERCEL_TOKEN`
 - `VERCEL_ORG_ID`
@@ -37,16 +43,16 @@ vercel org ls
 vercel projects ls
 ```
 
-Optionally set `NEXT_PUBLIC_ENV` for custom environment labels.
-
-To link locally without secrets run:
+To link locally:
 
 ```bash
-npx vercel link
+vercel link
 ```
+
+Set `VITE_ENV` for custom environment labels (e.g. `preview`, `production`).
 
 ## Troubleshooting
 
-- Ensure all secrets are set in **Repository Settings → Secrets and variables → Actions**.
-- Verify organization and project IDs via the Vercel CLI.
-- Run `npm run ci` locally to replicate the CI build.
+- Ensure all secrets are set in **Repository Settings → Secrets and variables → Actions**
+- Verify organization and project IDs via the Vercel CLI
+- Run `pnpm run ci` locally to replicate the CI build
