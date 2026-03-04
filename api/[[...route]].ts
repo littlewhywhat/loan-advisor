@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { handle } from '@hono/node-server/vercel';
+import { Hono } from 'hono';
 
 const app = new Hono().basePath('/api');
 
