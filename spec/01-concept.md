@@ -168,3 +168,7 @@ Done. When the dividends exceed the expense (fully covered case), two extra line
 Extra above expense — the monthly surplus (e.g. if post-loan income is 3,400 and expense is 3,000 → shows 400/mo)
 Extra accumulated per year — that surplus times 12 (e.g. 4,800/yr)
 These are shown as subtle rows under "Post-loan passive income" and don't affect the loan amount or payment calculations.
+
+"Savings-only time" and "Time saved with loan" should compare against total accumulated (loan principal + extra surplus during loan), not just the loan principal. Both rows moved below "Total accumulated after loan" so the flow reads: total → how long to save that → time saved.
+
+Added "Total accumulated after loan" row at the bottom of Results = loan principal + (dividend surplus * loan months). When there is no surplus it equals the loan principal.

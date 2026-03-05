@@ -234,16 +234,6 @@ export default function HomePage() {
               />
               <Separator size="4" my="2" />
               <Row
-                label="Savings-only time to same amount"
-                value={formatDuration(result.savingsOnlyMonths)}
-              />
-              <Row
-                label="Time saved with loan"
-                value={`${result.timeSavedYears.toFixed(1)} years`}
-                highlight
-              />
-              <Separator size="4" my="2" />
-              <Row
                 label="Post-loan passive income"
                 value={`${formatCZK(result.postLoanMonthlyIncome)}/mo`}
                 highlight
@@ -262,6 +252,21 @@ export default function HomePage() {
                   />
                 </>
               )}
+              <Separator size="4" my="2" />
+              <Row
+                label="Total accumulated after loan"
+                value={formatCZK(result.totalAccumulated)}
+                highlight
+              />
+              <Row
+                label="Savings-only time to same amount"
+                value={formatDuration(result.savingsOnlyMonths)}
+              />
+              <Row
+                label="Time saved with loan"
+                value={`${result.timeSavedYears.toFixed(1)} years`}
+                highlight
+              />
             </Flex>
           </Flex>
         </Card>
