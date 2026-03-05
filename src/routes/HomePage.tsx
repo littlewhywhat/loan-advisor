@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
+import { type KeyboardEvent, useMemo, useState } from 'react';
 import {
   Badge,
   Card,
   Flex,
   Heading,
+  IconButton,
   Separator,
   Slider,
   Text,
+  TextField,
 } from '@radix-ui/themes';
 import { computeExpenseLoan } from '@/lib/expenseCalc';
 
@@ -15,8 +17,6 @@ const INVESTMENT = {
   yearlyReturn: 0.08,
   taxRate: 0.15,
 };
-
-const LOAN_ANNUAL_RATE = 0.05;
 
 function formatCZK(amount: number): string {
   return new Intl.NumberFormat('cs-CZ', {
@@ -62,9 +62,67 @@ function Row({
   );
 }
 
+function EditableRate({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const startEdit = () => {
+    setDraft((value * 100).toFixed(1));
+    setEditing(true);
+  };
+
+  const confirm = () => {
+    const parsed = Number.parseFloat(draft);
+    if (!Number.isNaN(parsed) && parsed > 0 && parsed <= 100) {
+      onChange(parsed / 100);
+    }
+    setEditing(false);
+  };
+
+  const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') confirm();
+    if (e.key === 'Escape') setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <Flex align="center" gap="1">
+        <TextField.Root
+          size="1"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={handleKey}
+          style={{ width: 64 }}
+          autoFocus
+        />
+        <Text size="1">%/yr</Text>
+        <IconButton size="1" variant="soft" onClick={confirm}>
+          ✓
+        </IconButton>
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex align="center" gap="1">
+      <Badge>Rate: {(value * 100).toFixed(1)}%/yr</Badge>
+      <IconButton size="1" variant="ghost" onClick={startEdit}>
+        ✎
+      </IconButton>
+    </Flex>
+  );
+}
+
 export default function HomePage() {
   const [expense, setExpense] = useState(3000);
   const [savings, setSavings] = useState(3000);
+  const [loanRate, setLoanRate] = useState(0.05);
   const [loanYears, setLoanYears] = useState(10);
 
   const result = useMemo(
@@ -74,10 +132,10 @@ export default function HomePage() {
         monthlySavings: savings,
         yearlyReturn: INVESTMENT.yearlyReturn,
         taxRate: INVESTMENT.taxRate,
-        loanAnnualRate: LOAN_ANNUAL_RATE,
+        loanAnnualRate: loanRate,
         loanYears,
       }),
-    [expense, savings, loanYears],
+    [expense, savings, loanRate, loanYears],
   );
 
   const monthlyNetPct = (result.monthlyNetReturn * 100).toFixed(2);
@@ -154,9 +212,7 @@ export default function HomePage() {
           <Flex direction="column" gap="4">
             <Flex align="center" gap="2">
               <Heading size="3">Loan</Heading>
-              <Badge>
-                Rate: {(LOAN_ANNUAL_RATE * 100).toFixed(0)}%/yr
-              </Badge>
+              <EditableRate value={loanRate} onChange={setLoanRate} />
             </Flex>
 
             <Flex direction="column" gap="2">
