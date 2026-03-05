@@ -120,8 +120,8 @@ function EditableRate({
 }
 
 export default function HomePage() {
-  const [expense, setExpense] = useState(3000);
-  const [savings, setSavings] = useState(3000);
+  const [expense, setExpense] = useState(5000);
+  const [savings, setSavings] = useState(5000);
   const [loanRate, setLoanRate] = useState(0.05);
   const [loanYears, setLoanYears] = useState(10);
 
@@ -162,9 +162,9 @@ export default function HomePage() {
               <Slider
                 value={[expense]}
                 onValueChange={(v) => setExpense(v[0])}
-                min={1000}
-                max={20000}
-                step={1000}
+                min={2500}
+                max={100000}
+                step={2500}
               />
             </Flex>
 
@@ -180,9 +180,9 @@ export default function HomePage() {
               <Slider
                 value={[savings]}
                 onValueChange={(v) => setSavings(v[0])}
-                min={500}
-                max={30000}
-                step={500}
+                min={2500}
+                max={100000}
+                step={2500}
               />
             </Flex>
           </Flex>
