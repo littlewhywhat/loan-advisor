@@ -55,7 +55,8 @@ export function computeExpenseLoan(
     loanYears,
   } = inputs;
 
-  const monthlyNetReturn = (yearlyReturn * (1 - taxRate)) / 12;
+  const rawMonthlyReturn = (yearlyReturn * (1 - taxRate)) / 12;
+  const monthlyNetReturn = Math.floor(rawMonthlyReturn * 10000) / 10000;
   const r = loanAnnualRate / 12;
   const n = loanYears * 12;
   const factor = annuityFactor(r, n);

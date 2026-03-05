@@ -153,3 +153,10 @@ Savings-only time still uses iterative simulation (as agreed).
 Partial coverage: show the gap and how much more savings are needed. User adjusts sliders.
 Full coverage: clean success state.
 Does this look right to you?
+
+
+numbers don't seem to be correct...
+
+512 767 * 0.0057 = 2922 but i see 2906
+
+yes i want if it's 0.5666 to make it 0.56 and use and calculate with 0.56 and make it visible in UI as 0.56 not as 0.57.
