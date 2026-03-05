@@ -19,6 +19,8 @@ export type ExpenseLoanResult = {
   savingsOnlyMonths: number;
   timeSavedYears: number;
   postLoanMonthlyIncome: number;
+  dividendSurplus: number;
+  dividendSurplusYearly: number;
 };
 
 function annuityFactor(monthlyRate: number, months: number): number {
@@ -103,6 +105,8 @@ export function computeExpenseLoan(
   const timeSavedYears = (soMonths - n) / 12;
 
   const postLoanMonthlyIncome = loanPrincipal * monthlyNetReturn;
+  const dividendSurplus = Math.max(0, postLoanMonthlyIncome - monthlyExpense);
+  const dividendSurplusYearly = dividendSurplus * 12;
 
   return {
     monthlyNetReturn,
@@ -116,5 +120,7 @@ export function computeExpenseLoan(
     savingsOnlyMonths: soMonths,
     timeSavedYears,
     postLoanMonthlyIncome,
+    dividendSurplus,
+    dividendSurplusYearly,
   };
 }

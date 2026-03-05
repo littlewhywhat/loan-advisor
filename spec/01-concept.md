@@ -160,3 +160,11 @@ numbers don't seem to be correct...
 512 767 * 0.0057 = 2922 but i see 2906
 
 yes i want if it's 0.5666 to make it 0.56 and use and calculate with 0.56 and make it visible in UI as 0.56 not as 0.57.
+
+if dividends cover a bit mroe than expense - we need to show that like extra expense/savings a month and extra accumulated (don't substract it from monthly payment or add to investment needed as it will be confusing - just add couple extra lines)
+
+Done. When the dividends exceed the expense (fully covered case), two extra lines now appear in Results:
+
+Extra above expense — the monthly surplus (e.g. if post-loan income is 3,400 and expense is 3,000 → shows 400/mo)
+Extra accumulated per year — that surplus times 12 (e.g. 4,800/yr)
+These are shown as subtle rows under "Post-loan passive income" and don't affect the loan amount or payment calculations.

@@ -248,6 +248,20 @@ export default function HomePage() {
                 value={`${formatCZK(result.postLoanMonthlyIncome)}/mo`}
                 highlight
               />
+              {result.dividendSurplus > 0 && (
+                <>
+                  <Row
+                    label="Extra above expense"
+                    value={`${formatCZK(result.dividendSurplus)}/mo`}
+                    subtle
+                  />
+                  <Row
+                    label="Extra accumulated per year"
+                    value={`${formatCZK(result.dividendSurplusYearly)}/yr`}
+                    subtle
+                  />
+                </>
+              )}
             </Flex>
           </Flex>
         </Card>
