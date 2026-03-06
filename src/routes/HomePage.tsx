@@ -260,7 +260,7 @@ export default function HomePage() {
               size="2"
               variant="soft"
               color="red"
-              disabled={calculations.length <= 1}
+              disabled={locked || calculations.length <= 1}
               onClick={() => removeCalculation(activeId)}
             >
               🗑
