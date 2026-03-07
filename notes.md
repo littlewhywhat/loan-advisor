@@ -56,7 +56,13 @@ type Asset = {
 Something you owe — a debt or financial obligation.
 
 ```ts
-type LiabilityType = 'loan'
+type LiabilityBase = {
+  id: string
+  name: string
+  currency: string
+  createdAt: string
+  updatedAt: string
+}
 
 type LoanType =
   | 'living_mortgage'
@@ -64,22 +70,19 @@ type LoanType =
   | 'business'
   | 'personal'
 
-type Liability = {
-  id: string
-  name: string
-  type: LiabilityType
+type Loan = LiabilityBase & {
+  type: 'loan'
   loanType: LoanType
-  originalAmount: number          // how much was borrowed
-  currentBalance: number          // remaining principal
+  originalAmount: number
+  currentBalance: number
   interestRate: number            // annual, as decimal (0.05 = 5%)
-  monthlyPayment: number          // fixed monthly installment
+  monthlyPayment: number
   startDate: string               // ISO 8601 date
-  endDate: string | null          // expected payoff date, null for revolving (credit card)
-  currency: string
-  linkedAssetId: string | null    // optional: the asset this debt financed (mortgage → apartment)
-  createdAt: string
-  updatedAt: string
+  endDate: string | null
+  linkedAssetId: string | null
 }
+
+type Liability = Loan
 ```
 
 **Examples:** mortgage (4.5%, 25yr, 3.2M CZK), car loan (6%, 5yr, 400k CZK), credit card balance (revolving, 15k CZK).
@@ -93,14 +96,8 @@ A source of money coming in, recurring or one-time.
 ```ts
 type IncomeType =
   | 'salary'
-  | 'freelance'
-  | 'business'
   | 'rental'
   | 'dividends'
-  | 'interest'
-  | 'pension'
-  | 'side_hustle'
-  | 'other'
 
 type Frequency =
   | 'monthly'
