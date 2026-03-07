@@ -31,16 +31,9 @@ Something you own that has monetary value.
 ```ts
 type AssetType =
   | 'cash'
-  | 'savings_account'
   | 'real_estate'
-  | 'vehicle'
-  | 'stock'
-  | 'bond'
   | 'etf'
   | 'crypto'
-  | 'retirement'
-  | 'business'
-  | 'other'
 
 type Asset = {
   id: string
@@ -54,7 +47,7 @@ type Asset = {
 }
 ```
 
-**Examples:** apartment (real_estate, 5M CZK), emergency fund (savings_account, 200k CZK), VWCE (etf, 300k CZK), car (vehicle, 150k CZK).
+**Examples:** apartment (real_estate, 5M CZK), emergency fund (cash, 200k CZK), VWCE (etf, 300k CZK).
 
 ---
 
@@ -63,18 +56,9 @@ type Asset = {
 Something you owe — a debt or financial obligation.
 
 ```ts
-type LiabilityType =
-  | 'mortgage'
-  | 'car_loan'
-  | 'student_loan'
-  | 'personal_loan'
-  | 'credit_card'
-  | 'other'
-
 type Liability = {
   id: string
   name: string
-  type: LiabilityType
   originalAmount: number          // how much was borrowed
   currentBalance: number          // remaining principal
   interestRate: number            // annual, as decimal (0.05 = 5%)
@@ -109,11 +93,8 @@ type IncomeType =
   | 'other'
 
 type Frequency =
-  | 'weekly'
-  | 'biweekly'
   | 'monthly'
   | 'quarterly'
-  | 'semiannually'
   | 'annually'
 
 type Income = {
@@ -141,19 +122,8 @@ A recurring cost or financial commitment.
 
 ```ts
 type ExpenseCategory =
-  | 'housing'
-  | 'utilities'
-  | 'transportation'
-  | 'food'
-  | 'insurance'
-  | 'healthcare'
-  | 'subscriptions'
-  | 'education'
-  | 'entertainment'
-  | 'clothing'
-  | 'personal'
-  | 'giving'
-  | 'other'
+  | 'living_expense'
+  | 'liabilities'
 
 type Expense = {
   id: string
@@ -161,7 +131,7 @@ type Expense = {
   category: ExpenseCategory
   amount: number
   frequency: Frequency
-  isEssential: boolean            // true = rent, food, insurance; false = netflix, dining out
+  isEssential: boolean
   currency: string
   linkedLiabilityId: string | null  // optional: ties to a liability (mortgage payment → mortgage)
   createdAt: string
@@ -169,7 +139,7 @@ type Expense = {
 }
 ```
 
-**Examples:** rent (housing, 18k/mo, essential), groceries (food, 8k/mo, essential), Netflix (subscriptions, 300/mo, non-essential), mortgage payment (housing, 14k/mo, essential, linked to mortgage liability).
+**Examples:** rent + groceries + utilities (living_expense, 30k/mo), mortgage payment (liabilities, 14k/mo, linked to mortgage liability), car loan payment (liabilities, 8k/mo).
 
 ---
 
@@ -205,17 +175,14 @@ type NetWorthSnapshot = {
 | Passive income ratio | passive income / monthly expenses |
 | Months to financial freedom | (monthly expenses - passive income) > 0 ? remaining needed / monthly savings growth : 0 (already free) |
 | Debt-to-income ratio | sum(liability.monthlyPayment) / monthly gross income |
-| Liquid assets | sum(assets where type in cash, savings_account, stock, bond, etf, crypto) |
-| Illiquid assets | sum(assets where type in real_estate, vehicle, business, retirement) |
+| Liquid assets | sum(assets where type in cash, etf, crypto) |
+| Illiquid assets | sum(assets where type in real_estate) |
 
 ### Frequency → Monthly Normalization
 
 ```
-weekly        → × 52/12
-biweekly      → × 26/12
 monthly       → × 1
 quarterly     → × 1/3
-semiannually  → × 1/6
 annually      → × 1/12
 ```
 
