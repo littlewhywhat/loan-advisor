@@ -56,9 +56,19 @@ type Asset = {
 Something you owe — a debt or financial obligation.
 
 ```ts
+type LiabilityType = 'loan'
+
+type LoanType =
+  | 'living_mortgage'
+  | 'american_mortgage'
+  | 'business'
+  | 'personal'
+
 type Liability = {
   id: string
   name: string
+  type: LiabilityType
+  loanType: LoanType
   originalAmount: number          // how much was borrowed
   currentBalance: number          // remaining principal
   interestRate: number            // annual, as decimal (0.05 = 5%)
