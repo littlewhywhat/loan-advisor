@@ -187,7 +187,7 @@ function EditableName({
   );
 }
 
-export default function HomePage() {
+export default function LoanCalculatorPage() {
   const {
     calculations,
     activeId,
@@ -221,7 +221,7 @@ export default function HomePage() {
   );
 
   return (
-    <Flex direction="column" minHeight="100vh" align="center" gap="5" p="6">
+    <Flex direction="column" align="center" gap="5">
       <Heading size="7">Expense → Investment</Heading>
 
       <Flex direction="column" gap="5" style={{ width: '100%', maxWidth: 560 }}>
