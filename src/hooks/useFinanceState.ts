@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SEED_STORE } from '@/lib/seedData';
 import type {
   Asset,
   AssetInput,
@@ -18,7 +19,7 @@ import type {
 
 const STORAGE_KEY = 'personal-finance';
 
-const DEFAULT_STORE: FinanceStore = {
+const EMPTY_STORE: FinanceStore = {
   currency: 'CZK',
   assets: [],
   liabilities: [],
@@ -34,7 +35,8 @@ function loadStore(): FinanceStore {
       if (parsed?.currency) return parsed;
     }
   } catch {}
-  return { ...DEFAULT_STORE };
+  if (import.meta.env.DEV) return structuredClone(SEED_STORE);
+  return { ...EMPTY_STORE };
 }
 
 function stamp<T>(
