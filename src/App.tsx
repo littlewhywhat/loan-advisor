@@ -4,6 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { FinanceProvider } from '@/context/FinanceProvider';
 import AssetsPage from '@/routes/AssetsPage';
 import DashboardPage from '@/routes/DashboardPage';
+import IncomesExpensesPage from '@/routes/IncomesExpensesPage';
 import LiabilitiesPage from '@/routes/LiabilitiesPage';
 import LoanCalculatorPage from '@/routes/LoanCalculatorPage';
 import SimulatorPage from '@/routes/SimulatorPage';
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/assets" element={<AssetsPage />} />
             <Route path="/liabilities" element={<LiabilitiesPage />} />
+            <Route path="/cashflows" element={<IncomesExpensesPage />} />
             <Route path="/simulator" element={<SimulatorPage />} />
             <Route path="/calculator" element={<LoanCalculatorPage />} />
           </Routes>

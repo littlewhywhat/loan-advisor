@@ -1,5 +1,6 @@
 import { Badge, Box, Flex, IconButton, Text } from '@radix-ui/themes';
 import {
+  ArrowDownUp,
   BarChart3,
   Calculator,
   CreditCard,
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/assets', label: 'Assets', icon: PiggyBank },
   { path: '/liabilities', label: 'Liabilities', icon: CreditCard },
+  { path: '/cashflows', label: 'Income & Expenses', icon: ArrowDownUp },
   { path: '/simulator', label: 'Simulator', icon: BarChart3 },
   { path: '/calculator', label: 'Loan Calculator', icon: Calculator },
 ] as const;
