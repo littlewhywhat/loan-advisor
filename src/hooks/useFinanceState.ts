@@ -35,7 +35,8 @@ function loadStore(): FinanceStore {
       if (parsed?.currency) return parsed;
     }
   } catch {}
-  if (import.meta.env.DEV) return structuredClone(SEED_STORE);
+  if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'preview')
+    return structuredClone(SEED_STORE);
   return { ...EMPTY_STORE };
 }
 
