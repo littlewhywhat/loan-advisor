@@ -17,7 +17,11 @@ import type {
   LiabilityUpdate,
 } from '@/types/finance';
 
-const STORAGE_KEY = 'personal-finance';
+const MODE_KEY = 'finance-mode';
+const STORAGE_KEY_DEV = 'personal-finance-dev';
+const STORAGE_KEY_PROD = 'personal-finance-prod';
+
+export type AppMode = 'dev' | 'prod';
 
 const EMPTY_STORE: FinanceStore = {
   currency: 'CZK',
@@ -27,16 +31,26 @@ const EMPTY_STORE: FinanceStore = {
   expenses: [],
 };
 
-function loadStore(): FinanceStore {
+function loadMode(): AppMode {
+  const saved = localStorage.getItem(MODE_KEY);
+  if (saved === 'prod') return 'prod';
+  return 'dev';
+}
+
+function storageKey(mode: AppMode): string {
+  return mode === 'dev' ? STORAGE_KEY_DEV : STORAGE_KEY_PROD;
+}
+
+function loadStore(mode: AppMode): FinanceStore {
+  const key = storageKey(mode);
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed?.currency) return parsed;
     }
   } catch {}
-  if (import.meta.env.DEV || import.meta.env.VITE_ENV === 'preview')
-    return structuredClone(SEED_STORE);
+  if (mode === 'dev') return structuredClone(SEED_STORE);
   return { ...EMPTY_STORE };
 }
 
@@ -57,11 +71,18 @@ function now(): string {
 }
 
 export function useFinanceState() {
-  const [store, setState] = useState<FinanceStore>(loadStore);
+  const [mode, setModeState] = useState<AppMode>(loadMode);
+  const [store, setState] = useState<FinanceStore>(() => loadStore(mode));
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  }, [store]);
+    localStorage.setItem(storageKey(mode), JSON.stringify(store));
+  }, [store, mode]);
+
+  const setMode = (next: AppMode) => {
+    localStorage.setItem(MODE_KEY, next);
+    setModeState(next);
+    setState(loadStore(next));
+  };
 
   const setCurrency = (currency: Currency) =>
     setState((prev) => ({ ...prev, currency }));
@@ -148,6 +169,8 @@ export function useFinanceState() {
 
   return {
     store,
+    mode,
+    setMode,
     setCurrency,
     addAsset,
     updateAsset,

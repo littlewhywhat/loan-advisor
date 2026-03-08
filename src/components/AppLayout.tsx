@@ -1,4 +1,4 @@
-import { Box, Flex, IconButton, Text } from '@radix-ui/themes';
+import { Badge, Box, Flex, IconButton, Text } from '@radix-ui/themes';
 import {
   BarChart3,
   Calculator,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useFinance } from '@/context/FinanceProvider';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -34,6 +35,22 @@ function useIsMobile() {
   }, []);
 
   return isMobile;
+}
+
+function ModeToggle() {
+  const { mode, setMode } = useFinance();
+  const isDev = mode === 'dev';
+  return (
+    <Badge
+      size="1"
+      color={isDev ? 'orange' : 'green'}
+      variant="soft"
+      style={{ cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => setMode(isDev ? 'prod' : 'dev')}
+    >
+      {isDev ? 'DEV' : 'PROD'}
+    </Badge>
+  );
 }
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -78,9 +95,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <nav>
             <Flex direction="column" gap="1" p="3">
               <Flex justify="between" align="center" mb="3">
-                <Text size="3" weight="bold">
-                  Loan Advisor
-                </Text>
+                <Flex align="center" gap="2">
+                  <Text size="3" weight="bold">
+                    Loan Advisor
+                  </Text>
+                  <ModeToggle />
+                </Flex>
                 {isMobile && (
                   <IconButton size="1" variant="ghost" onClick={closeSidebar}>
                     <X size={18} />
@@ -131,6 +151,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <Text size="3" weight="bold">
               Loan Advisor
             </Text>
+            <Box flexGrow="1" />
+            <ModeToggle />
           </Flex>
         )}
         <Box p="5" flexGrow="1" style={{ overflowY: 'auto' }}>
