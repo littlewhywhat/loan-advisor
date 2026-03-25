@@ -10,7 +10,7 @@ import {
   Table,
   Text,
 } from '@radix-ui/themes';
-import { Copy, Import } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
   CartesianGrid,
@@ -23,91 +23,166 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import AddEventDialog from '@/components/AddEventDialog';
 import { useFinance } from '@/context/FinanceProvider';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatPct, toMonthly } from '@/lib/format';
+import { runSimulation } from '@/lib/simulate';
+import type { FinanceStore, Loan } from '@/types/finance';
 import {
-  runSimulation,
+  DEFAULT_ASSUMPTIONS,
+  type Scenario,
   type SimulationResult,
-  type StrategyConfig,
-  storeToStrategy,
-} from '@/lib/simulate';
+  type TimelineEvent,
+} from '@/types/simulation';
 
-function emptyStrategy(): StrategyConfig {
+function createScenario(name: string): Scenario {
   return {
-    assets: [],
-    loans: [],
-    incomes: [],
-    expenses: [],
-    reinvestTargetId: null,
+    id: crypto.randomUUID(),
+    name,
+    events: [],
+    assumptions: { ...DEFAULT_ASSUMPTIONS },
   };
 }
 
-function StrategyPanel({
-  label,
-  strategy,
-  onImport,
-  onCloneOther,
-  onChangeReinvest,
-}: {
-  label: string;
-  strategy: StrategyConfig;
-  onImport: () => void;
-  onCloneOther: () => void;
-  onChangeReinvest: (id: string | null) => void;
-}) {
+function CurrentStateSummary({ store }: { store: FinanceStore }) {
+  const totalAssets = store.assets.reduce((s, a) => s + a.value, 0);
+  const loans = store.liabilities.filter(
+    (l): l is Loan => l.type === 'loan',
+  );
+  const totalDebt = loans.reduce((s, l) => s + l.currentBalance, 0);
+  const netWorth = totalAssets - totalDebt;
+  const totalIncome = store.incomes.reduce(
+    (s, i) => s + toMonthly(i.amount, i.frequency),
+    0,
+  );
+  const totalExpenses = store.expenses.reduce(
+    (s, e) => s + toMonthly(e.amount, e.frequency),
+    0,
+  );
+  const cashFlow = totalIncome - totalExpenses;
+  const passiveIncome = store.incomes
+    .filter((i) => i.isPassive)
+    .reduce((s, i) => s + toMonthly(i.amount, i.frequency), 0);
+
   return (
-    <Card style={{ flex: '1 1 300px' }}>
-      <Flex direction="column" gap="3">
-        <Flex justify="between" align="center">
-          <Heading size="3">{label}</Heading>
-          <Flex gap="2">
-            <Button size="1" variant="soft" onClick={onImport}>
-              <Import size={14} />
-              Import Current
-            </Button>
-            <Button size="1" variant="soft" onClick={onCloneOther}>
-              <Copy size={14} />
-              Clone Other
-            </Button>
-          </Flex>
+    <Card>
+      <Flex direction="column" gap="1">
+        <Text size="1" color="gray">
+          Starting from your current financial state (today)
+        </Text>
+        <Flex gap="5" wrap="wrap">
+          <Text size="2">
+            Net worth:{' '}
+            <Text weight="bold">{formatMoney(Math.round(netWorth))}</Text>
+          </Text>
+          <Text size="2">
+            Cash flow:{' '}
+            <Text
+              weight="bold"
+              color={cashFlow >= 0 ? 'green' : 'red'}
+            >
+              {formatMoney(Math.round(cashFlow))}/mo
+            </Text>
+          </Text>
+          <Text size="2">
+            Assets:{' '}
+            <Text weight="bold">{formatMoney(Math.round(totalAssets))}</Text>
+          </Text>
+          <Text size="2">
+            Debt:{' '}
+            <Text weight="bold">{formatMoney(Math.round(totalDebt))}</Text>
+          </Text>
+          <Text size="2">
+            Passive:{' '}
+            <Text weight="bold">
+              {formatMoney(Math.round(passiveIncome))}/mo
+            </Text>
+          </Text>
         </Flex>
-
-        <Flex gap="4" wrap="wrap">
-          <Text size="1" color="gray">
-            {strategy.assets.length} assets
-          </Text>
-          <Text size="1" color="gray">
-            {strategy.loans.length} loans
-          </Text>
-          <Text size="1" color="gray">
-            {strategy.incomes.length} incomes
-          </Text>
-          <Text size="1" color="gray">
-            {strategy.expenses.length} expenses
-          </Text>
-        </Flex>
-
-        <div>
-          <Text size="2" weight="medium" mb="1" asChild>
-            <span>Reinvest surplus into</span>
-          </Text>
-          <Select.Root
-            value={strategy.reinvestTargetId ?? '_none'}
-            onValueChange={(v) => onChangeReinvest(v === '_none' ? null : v)}
-          >
-            <Select.Trigger style={{ width: '100%' }} />
-            <Select.Content>
-              <Select.Item value="_none">No reinvestment</Select.Item>
-              {strategy.assets.map((a) => (
-                <Select.Item key={a.id} value={a.id}>
-                  {a.name}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-        </div>
       </Flex>
     </Card>
+  );
+}
+
+function EventCard({
+  event,
+  onRemove,
+}: {
+  event: TimelineEvent;
+  onRemove: () => void;
+}) {
+  const scheduleLabel =
+    event.schedule === 'once'
+      ? `Month ${event.month}`
+      : `Month ${event.startMonth} → ${event.endMonth ?? '∞'}, ${event.frequency}`;
+
+  return (
+    <div>
+      <Text size="1" color="gray" mb="1" asChild>
+        <div>{scheduleLabel}</div>
+      </Text>
+      <Card>
+        <Flex justify="between" align="start" gap="2">
+          <Flex direction="column" gap="1">
+            <Text size="2" weight="bold">
+              {event.icon} {event.label}
+            </Text>
+            {event.details.map((d) => (
+              <Text key={d} size="1" color="gray">
+                {d}
+              </Text>
+            ))}
+          </Flex>
+          <Button size="1" variant="ghost" color="red" onClick={onRemove}>
+            <Trash2 size={14} />
+          </Button>
+        </Flex>
+      </Card>
+    </div>
+  );
+}
+
+function ScenarioPanel({
+  scenario,
+  onAddEvent,
+  onRemoveEvent,
+}: {
+  scenario: Scenario;
+  onAddEvent: () => void;
+  onRemoveEvent: (eventId: string) => void;
+}) {
+  const sorted = [...scenario.events].sort((a, b) => {
+    const aM = a.schedule === 'once' ? a.month : a.startMonth;
+    const bM = b.schedule === 'once' ? b.month : b.startMonth;
+    return aM - bM;
+  });
+
+  return (
+    <Flex
+      direction="column"
+      gap="3"
+      style={{ flex: '1 1 300px', minWidth: 0 }}
+    >
+      <Heading size="4">{scenario.name}</Heading>
+
+      {sorted.length === 0 && (
+        <Text size="2" color="gray">
+          No events — current state projected forward.
+        </Text>
+      )}
+
+      {sorted.map((event) => (
+        <EventCard
+          key={event.id}
+          event={event}
+          onRemove={() => onRemoveEvent(event.id)}
+        />
+      ))}
+
+      <Button variant="soft" onClick={onAddEvent}>
+        <Plus size={14} /> Add event
+      </Button>
+    </Flex>
   );
 }
 
@@ -116,21 +191,21 @@ function ComparisonChart({
   dataKey,
   resultA,
   resultB,
-  formatValue,
+  labelA,
+  labelB,
 }: {
   title: string;
-  dataKey: keyof (typeof resultA.snapshots)[number];
+  dataKey: keyof SimulationResult['steps'][number]['summary'];
   resultA: SimulationResult;
   resultB: SimulationResult;
-  formatValue?: (v: number) => string;
+  labelA: string;
+  labelB: string;
 }) {
-  const data = resultA.snapshots.map((snap, i) => ({
-    month: snap.month,
-    A: snap[dataKey],
-    B: resultB.snapshots[i]?.[dataKey] ?? 0,
+  const data = resultA.steps.map((step, i) => ({
+    month: step.month,
+    A: step.summary[dataKey],
+    B: resultB.steps[i]?.summary[dataKey] ?? 0,
   }));
-
-  const fmt = formatValue ?? ((v: number) => formatMoney(v));
 
   return (
     <Card>
@@ -154,8 +229,8 @@ function ComparisonChart({
           />
           <Tooltip
             formatter={(value, name) => [
-              fmt(Number(value ?? 0)),
-              `Strategy ${name ?? ''}`,
+              formatMoney(Number(value ?? 0)),
+              name === 'A' ? labelA : labelB,
             ]}
             labelFormatter={(m) => {
               const y = Math.floor(Number(m) / 12);
@@ -163,7 +238,9 @@ function ComparisonChart({
               return `Year ${y}, Month ${mo}`;
             }}
           />
-          <Legend />
+          <Legend
+            formatter={(name) => (name === 'A' ? labelA : labelB)}
+          />
           <Line
             type="monotone"
             dataKey="A"
@@ -179,7 +256,11 @@ function ComparisonChart({
             strokeWidth={2}
           />
           {dataKey === 'cashFlow' && (
-            <ReferenceLine y={0} stroke="var(--gray-8)" strokeDasharray="3 3" />
+            <ReferenceLine
+              y={0}
+              stroke="var(--gray-8)"
+              strokeDasharray="3 3"
+            />
           )}
         </LineChart>
       </ResponsiveContainer>
@@ -187,43 +268,248 @@ function ComparisonChart({
   );
 }
 
-const MILESTONES = [5, 10, 15, 20];
-
-function ComparisonTable({
-  resultA,
-  resultB,
+function SummaryRow({
+  label,
+  value,
+  bold,
+  indent,
 }: {
-  resultA: SimulationResult;
-  resultB: SimulationResult;
+  label: string;
+  value: string;
+  bold?: boolean;
+  indent?: boolean;
 }) {
+  return (
+    <Flex justify="between" pl={indent ? '3' : '0'}>
+      <Text size="2" color={indent ? 'gray' : undefined}>
+        {label}
+      </Text>
+      <Text size="2" weight={bold ? 'bold' : 'medium'}>
+        {value}
+      </Text>
+    </Flex>
+  );
+}
+
+function SnapshotColumn({
+  label,
+  state,
+  summary,
+}: {
+  label: string;
+  state: FinanceStore;
+  summary: SimulationResult['steps'][number]['summary'];
+}) {
+  const loans = state.liabilities.filter(
+    (l): l is Loan => l.type === 'loan',
+  );
+  const freqLabel = (f: string) =>
+    f === 'monthly' ? 'mo' : f === 'quarterly' ? 'qt' : 'yr';
+
+  return (
+    <Flex
+      direction="column"
+      gap="2"
+      style={{ flex: '1 1 280px', minWidth: 0 }}
+    >
+      <Text size="3" weight="bold">
+        {label}
+      </Text>
+
+      <SummaryRow
+        label="Net worth"
+        value={formatMoney(summary.netWorth)}
+        bold
+      />
+      <SummaryRow
+        label="Cash flow"
+        value={`${formatMoney(summary.cashFlow)}/mo`}
+      />
+      <SummaryRow
+        label="Passive income"
+        value={`${formatMoney(summary.passiveIncome)}/mo`}
+      />
+      <SummaryRow label="DTI" value={formatPct(summary.dti)} />
+      <SummaryRow
+        label="Can borrow"
+        value={`~${formatMoney(summary.maxBorrowable)}`}
+      />
+
+      <Separator size="4" />
+      <Text size="2" weight="bold" color="gray">
+        Assets
+      </Text>
+      {state.assets.map((a) => (
+        <SummaryRow
+          key={a.id}
+          label={a.name}
+          value={formatMoney(Math.round(a.value))}
+          indent
+        />
+      ))}
+
+      <Separator size="4" />
+      <Text size="2" weight="bold" color="gray">
+        Liabilities
+      </Text>
+      {loans.length === 0 && (
+        <Text size="1" color="gray">
+          None
+        </Text>
+      )}
+      {loans.map((l) => (
+        <SummaryRow
+          key={l.id}
+          label={l.name}
+          value={
+            l.currentBalance > 0
+              ? formatMoney(Math.round(l.currentBalance))
+              : 'Paid off'
+          }
+          indent
+        />
+      ))}
+
+      <Separator size="4" />
+      <Text size="2" weight="bold" color="gray">
+        Incomes
+      </Text>
+      {state.incomes.map((i) => (
+        <SummaryRow
+          key={i.id}
+          label={i.name}
+          value={`${formatMoney(i.amount)}/${freqLabel(i.frequency)}`}
+          indent
+        />
+      ))}
+
+      <Separator size="4" />
+      <Text size="2" weight="bold" color="gray">
+        Expenses
+      </Text>
+      {state.expenses.map((e) => (
+        <SummaryRow
+          key={e.id}
+          label={e.name}
+          value={`${formatMoney(e.amount)}/${freqLabel(e.frequency)}`}
+          indent
+        />
+      ))}
+    </Flex>
+  );
+}
+
+function SnapshotSection({
+  month,
+  onMonthChange,
+  maxMonth,
+  stepA,
+  stepB,
+  labelA,
+  labelB,
+}: {
+  month: number;
+  onMonthChange: (m: number) => void;
+  maxMonth: number;
+  stepA: SimulationResult['steps'][number];
+  stepB: SimulationResult['steps'][number];
+  labelA: string;
+  labelB: string;
+}) {
+  const yr = Math.floor(month / 12);
+  const mo = month % 12;
+
   return (
     <Card>
       <Heading size="3" mb="3">
-        Milestone Comparison
+        Snapshot
+      </Heading>
+      <Flex direction="column" gap="2" mb="4">
+        <Flex justify="between">
+          <Text size="2" weight="medium">
+            Month
+          </Text>
+          <Text size="2" weight="bold">
+            Month {month} (Year {yr}
+            {mo > 0 ? `, Month ${mo}` : ''})
+          </Text>
+        </Flex>
+        <Slider
+          value={[month]}
+          onValueChange={(v) => onMonthChange(v[0])}
+          min={1}
+          max={maxMonth}
+          step={1}
+        />
+      </Flex>
+
+      <Flex gap="5" wrap="wrap">
+        <SnapshotColumn
+          label={labelA}
+          state={stepA.state}
+          summary={stepA.summary}
+        />
+        <SnapshotColumn
+          label={labelB}
+          state={stepB.state}
+          summary={stepB.summary}
+        />
+      </Flex>
+    </Card>
+  );
+}
+
+function MilestonesTable({
+  resultA,
+  resultB,
+  labelA,
+  labelB,
+  horizon,
+}: {
+  resultA: SimulationResult;
+  resultB: SimulationResult;
+  labelA: string;
+  labelB: string;
+  horizon: number;
+}) {
+  const milestones = [5, 10, 15, 20, 25, 30].filter((y) => y <= horizon);
+
+  return (
+    <Card>
+      <Heading size="3" mb="3">
+        Milestones
       </Heading>
       <Table.Root size="1" variant="surface">
         <Table.Header>
           <Table.Row>
             <Table.ColumnHeaderCell>Year</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Net Worth A</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Net Worth B</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Cash Flow A</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Cash Flow B</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>
+              Net Worth {labelA}
+            </Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>
+              Net Worth {labelB}
+            </Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Δ (B−A)</Table.ColumnHeaderCell>
           </Table.Row>
         </Table.Header>
         <Table.Body>
-          {MILESTONES.map((yr) => {
+          {milestones.map((yr) => {
             const idx = yr * 12 - 1;
-            const a = resultA.snapshots[idx];
-            const b = resultB.snapshots[idx];
+            const a = resultA.steps[idx]?.summary;
+            const b = resultB.steps[idx]?.summary;
             if (!a || !b) return null;
+            const delta = b.netWorth - a.netWorth;
             return (
               <Table.Row key={yr}>
                 <Table.Cell>{yr}</Table.Cell>
                 <Table.Cell>{formatMoney(a.netWorth)}</Table.Cell>
                 <Table.Cell>{formatMoney(b.netWorth)}</Table.Cell>
-                <Table.Cell>{formatMoney(a.cashFlow)}</Table.Cell>
-                <Table.Cell>{formatMoney(b.cashFlow)}</Table.Cell>
+                <Table.Cell>
+                  <Text color={delta >= 0 ? 'green' : 'red'}>
+                    {delta >= 0 ? '+' : ''}
+                    {formatMoney(delta)}
+                  </Text>
+                </Table.Cell>
               </Table.Row>
             );
           })}
@@ -237,10 +523,16 @@ function ComparisonTable({
           </Text>
           <Flex gap="4">
             <Badge color="blue">
-              A: {resultA.fiMonth ? `Month ${resultA.fiMonth}` : 'Not reached'}
+              {labelA}:{' '}
+              {resultA.fiMonth
+                ? `Month ${resultA.fiMonth}`
+                : 'Not reached'}
             </Badge>
             <Badge color="orange">
-              B: {resultB.fiMonth ? `Month ${resultB.fiMonth}` : 'Not reached'}
+              {labelB}:{' '}
+              {resultB.fiMonth
+                ? `Month ${resultB.fiMonth}`
+                : 'Not reached'}
             </Badge>
           </Flex>
         </Flex>
@@ -249,17 +541,12 @@ function ComparisonTable({
             Total Interest Paid
           </Text>
           <Flex gap="4">
-            <Text size="2">A: {formatMoney(resultA.totalInterestPaid)}</Text>
-            <Text size="2">B: {formatMoney(resultB.totalInterestPaid)}</Text>
-          </Flex>
-        </Flex>
-        <Flex justify="between">
-          <Text size="2" color="gray">
-            Peak Negative Cash Flow
-          </Text>
-          <Flex gap="4">
-            <Text size="2">A: {formatMoney(resultA.peakNegativeCashFlow)}</Text>
-            <Text size="2">B: {formatMoney(resultB.peakNegativeCashFlow)}</Text>
+            <Text size="2">
+              {labelA}: {formatMoney(resultA.totalInterestPaid)}
+            </Text>
+            <Text size="2">
+              {labelB}: {formatMoney(resultB.totalInterestPaid)}
+            </Text>
           </Flex>
         </Flex>
       </Flex>
@@ -269,51 +556,69 @@ function ComparisonTable({
 
 export default function SimulatorPage() {
   const { store } = useFinance();
-  const [strategyA, setStrategyA] = useState<StrategyConfig>(emptyStrategy);
-  const [strategyB, setStrategyB] = useState<StrategyConfig>(emptyStrategy);
+  const [scenarios, setScenarios] = useState<Scenario[]>([
+    createScenario('Baseline'),
+    createScenario('Scenario B'),
+  ]);
+  const [compareA, setCompareA] = useState(0);
+  const [compareB, setCompareB] = useState(1);
   const [horizon, setHorizon] = useState(20);
+  const [snapshotMonth, setSnapshotMonth] = useState(60);
+  const [addEventOpen, setAddEventOpen] = useState(false);
+  const [addEventTarget, setAddEventTarget] = useState(0);
+  const [dialogKey, setDialogKey] = useState(0);
 
-  const importCurrent = () => storeToStrategy(store);
+  const scenarioA = scenarios[compareA];
+  const scenarioB = scenarios[compareB];
 
   const resultA = useMemo(
-    () => runSimulation(strategyA, horizon),
-    [strategyA, horizon],
+    () => runSimulation(store, scenarioA, horizon),
+    [store, scenarioA, horizon],
   );
   const resultB = useMemo(
-    () => runSimulation(strategyB, horizon),
-    [strategyB, horizon],
+    () => runSimulation(store, scenarioB, horizon),
+    [store, scenarioB, horizon],
   );
 
-  const hasData =
-    strategyA.assets.length > 0 ||
-    strategyA.incomes.length > 0 ||
-    strategyB.assets.length > 0 ||
-    strategyB.incomes.length > 0;
+  const maxMonth = horizon * 12;
+  const clampedSnapshot = Math.min(snapshotMonth, maxMonth);
+  const stepA = resultA.steps[clampedSnapshot - 1];
+  const stepB = resultB.steps[clampedSnapshot - 1];
+
+  const openAddEvent = (scenarioIndex: number) => {
+    setAddEventTarget(scenarioIndex);
+    setDialogKey((k) => k + 1);
+    setAddEventOpen(true);
+  };
+
+  const handleAddEvent = (event: TimelineEvent) => {
+    setScenarios((prev) =>
+      prev.map((s, i) =>
+        i === addEventTarget ? { ...s, events: [...s.events, event] } : s,
+      ),
+    );
+  };
+
+  const removeEvent = (scenarioIndex: number, eventId: string) => {
+    setScenarios((prev) =>
+      prev.map((s, i) =>
+        i === scenarioIndex
+          ? { ...s, events: s.events.filter((e) => e.id !== eventId) }
+          : s,
+      ),
+    );
+  };
+
+  const addScenario = () => {
+    const name = `Scenario ${String.fromCharCode(65 + scenarios.length)}`;
+    setScenarios((prev) => [...prev, createScenario(name)]);
+  };
 
   return (
     <Flex direction="column" gap="5">
-      <Heading size="7">Strategy Simulator</Heading>
+      <Heading size="7">Simulator</Heading>
 
-      <Flex gap="4" wrap="wrap">
-        <StrategyPanel
-          label="Strategy A"
-          strategy={strategyA}
-          onImport={() => setStrategyA(importCurrent())}
-          onCloneOther={() => setStrategyA({ ...strategyB })}
-          onChangeReinvest={(id) =>
-            setStrategyA((s) => ({ ...s, reinvestTargetId: id }))
-          }
-        />
-        <StrategyPanel
-          label="Strategy B"
-          strategy={strategyB}
-          onImport={() => setStrategyB(importCurrent())}
-          onCloneOther={() => setStrategyB({ ...strategyA })}
-          onChangeReinvest={(id) =>
-            setStrategyB((s) => ({ ...s, reinvestTargetId: id }))
-          }
-        />
-      </Flex>
+      <CurrentStateSummary store={store} />
 
       <Card>
         <Flex direction="column" gap="2">
@@ -335,43 +640,108 @@ export default function SimulatorPage() {
         </Flex>
       </Card>
 
-      {!hasData && (
-        <Card>
-          <Text size="3" color="gray" align="center">
-            Import your current financial state into one or both strategies to
-            start comparing.
+      <Flex gap="3" align="end">
+        <div style={{ flex: 1 }}>
+          <Text size="1" color="gray" mb="1" asChild>
+            <span>Left</span>
           </Text>
-        </Card>
+          <Select.Root
+            value={String(compareA)}
+            onValueChange={(v) => setCompareA(Number(v))}
+          >
+            <Select.Trigger style={{ width: '100%' }} />
+            <Select.Content>
+              {scenarios.map((s, i) => (
+                <Select.Item key={s.id} value={String(i)}>
+                  {s.name}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </div>
+        <div style={{ flex: 1 }}>
+          <Text size="1" color="gray" mb="1" asChild>
+            <span>Right</span>
+          </Text>
+          <Select.Root
+            value={String(compareB)}
+            onValueChange={(v) => setCompareB(Number(v))}
+          >
+            <Select.Trigger style={{ width: '100%' }} />
+            <Select.Content>
+              {scenarios.map((s, i) => (
+                <Select.Item key={s.id} value={String(i)}>
+                  {s.name}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </div>
+        <Button variant="soft" onClick={addScenario}>
+          <Plus size={14} /> New
+        </Button>
+      </Flex>
+
+      <Flex gap="5" wrap="wrap">
+        <ScenarioPanel
+          scenario={scenarioA}
+          onAddEvent={() => openAddEvent(compareA)}
+          onRemoveEvent={(id) => removeEvent(compareA, id)}
+        />
+        <ScenarioPanel
+          scenario={scenarioB}
+          onAddEvent={() => openAddEvent(compareB)}
+          onRemoveEvent={(id) => removeEvent(compareB, id)}
+        />
+      </Flex>
+
+      <Separator size="4" />
+
+      <ComparisonChart
+        title="Net Worth Over Time"
+        dataKey="netWorth"
+        resultA={resultA}
+        resultB={resultB}
+        labelA={scenarioA.name}
+        labelB={scenarioB.name}
+      />
+
+      <ComparisonChart
+        title="Monthly Cash Flow"
+        dataKey="cashFlow"
+        resultA={resultA}
+        resultB={resultB}
+        labelA={scenarioA.name}
+        labelB={scenarioB.name}
+      />
+
+      {stepA && stepB && (
+        <SnapshotSection
+          month={clampedSnapshot}
+          onMonthChange={setSnapshotMonth}
+          maxMonth={maxMonth}
+          stepA={stepA}
+          stepB={stepB}
+          labelA={scenarioA.name}
+          labelB={scenarioB.name}
+        />
       )}
 
-      {hasData && (
-        <>
-          <Separator size="4" />
+      <MilestonesTable
+        resultA={resultA}
+        resultB={resultB}
+        labelA={scenarioA.name}
+        labelB={scenarioB.name}
+        horizon={horizon}
+      />
 
-          <ComparisonChart
-            title="Net Worth Over Time"
-            dataKey="netWorth"
-            resultA={resultA}
-            resultB={resultB}
-          />
-
-          <ComparisonChart
-            title="Monthly Cash Flow"
-            dataKey="cashFlow"
-            resultA={resultA}
-            resultB={resultB}
-          />
-
-          <ComparisonChart
-            title="Passive Income"
-            dataKey="passiveIncome"
-            resultA={resultA}
-            resultB={resultB}
-          />
-
-          <ComparisonTable resultA={resultA} resultB={resultB} />
-        </>
-      )}
+      <AddEventDialog
+        key={dialogKey}
+        open={addEventOpen}
+        onOpenChange={setAddEventOpen}
+        store={store}
+        onAdd={handleAddEvent}
+      />
     </Flex>
   );
 }
