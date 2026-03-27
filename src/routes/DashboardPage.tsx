@@ -1,4 +1,5 @@
 import { Badge, Card, Flex, Heading, Separator, Text } from '@radix-ui/themes';
+import { Info } from 'lucide-react';
 import { useMemo } from 'react';
 import { useFinance } from '@/context/FinanceProvider';
 import { formatMoney, toMonthly } from '@/lib/format';
@@ -54,6 +55,10 @@ function isLoan(l: { type: string }): l is Loan {
   return l.type === 'loan';
 }
 
+function isFutureLoan(l: Loan): boolean {
+  return new Date(l.startDate) > new Date();
+}
+
 export default function DashboardPage() {
   const { store } = useFinance();
   const currency = store.currency;
@@ -72,11 +77,29 @@ export default function DashboardPage() {
     );
     const totalIncome = totalManualIncome + totalPassiveIncome;
 
+    const allLoans = store.liabilities.filter(isLoan);
+    const activeLoans = allLoans.filter((l) => !isFutureLoan(l));
+    const futureLoans = allLoans.filter(isFutureLoan);
+
+    const activeLoanIds = new Set(activeLoans.map((l) => l.id));
+    const futureLoanIds = new Set(futureLoans.map((l) => l.id));
+
     const manualExpenses = store.expenses.filter(
       (e) => e.category === 'living_expense',
     );
     const debtExpenses = store.expenses.filter(
-      (e) => e.category === 'liability',
+      (e) =>
+        e.category === 'liability' &&
+        (!e.linkedLiabilityId || activeLoanIds.has(e.linkedLiabilityId)),
+    );
+    const futureDebtExpenses = store.expenses.filter(
+      (e) =>
+        e.category === 'liability' &&
+        e.linkedLiabilityId &&
+        futureLoanIds.has(e.linkedLiabilityId),
+    );
+    const ownershipExpenses = store.expenses.filter(
+      (e) => e.category === 'ownership',
     );
 
     const totalManualExpenses = manualExpenses.reduce(
@@ -87,19 +110,39 @@ export default function DashboardPage() {
       (sum, e) => sum + toMonthly(e.amount, e.frequency),
       0,
     );
-    const totalExpenses = totalManualExpenses + totalDebtService;
+    const totalOwnership = ownershipExpenses.reduce(
+      (sum, e) => sum + toMonthly(e.amount, e.frequency),
+      0,
+    );
+    const totalExpenses =
+      totalManualExpenses + totalDebtService + totalOwnership;
 
     const cashFlow = totalIncome - totalExpenses;
 
     const totalAssets = store.assets.reduce((sum, a) => sum + a.value, 0);
-    const totalLiabilities = store.liabilities
-      .filter(isLoan)
-      .reduce((sum, l) => sum + l.currentBalance, 0);
+    const totalLiabilities = activeLoans.reduce(
+      (sum, l) => sum + l.currentBalance,
+      0,
+    );
     const netWorth = totalAssets - totalLiabilities;
     const debtToAsset = totalAssets > 0 ? totalLiabilities / totalAssets : 0;
 
     const passiveCoverage =
       totalManualExpenses > 0 ? totalPassiveIncome / totalManualExpenses : 0;
+
+    const upcomingNotes = futureLoans.map((l) => {
+      const expense = futureDebtExpenses.find(
+        (e) => e.linkedLiabilityId === l.id,
+      );
+      const amount = expense
+        ? toMonthly(expense.amount, expense.frequency)
+        : l.monthlyPayment;
+      return {
+        name: l.name,
+        date: l.startDate,
+        monthlyAmount: amount,
+      };
+    });
 
     return {
       manualIncomes,
@@ -109,8 +152,10 @@ export default function DashboardPage() {
       totalIncome,
       manualExpenses,
       debtExpenses,
+      ownershipExpenses,
       totalManualExpenses,
       totalDebtService,
+      totalOwnership,
       totalExpenses,
       cashFlow,
       totalAssets,
@@ -118,15 +163,17 @@ export default function DashboardPage() {
       netWorth,
       debtToAsset,
       passiveCoverage,
+      activeLoans,
+      upcomingNotes,
     };
   }, [store]);
 
   const fmt = (v: number) => formatMoney(v, currency);
 
   const linkedLiabilityFor = (assetId: string) =>
-    store.liabilities.find((l) => isLoan(l) && l.linkedAssetId === assetId) as
-      | Loan
-      | undefined;
+    store.liabilities.find(
+      (l) => isLoan(l) && l.linkedAssetId === assetId && !isFutureLoan(l),
+    ) as Loan | undefined;
 
   return (
     <Flex direction="column" gap="5" style={{ maxWidth: 720 }}>
@@ -154,6 +201,25 @@ export default function DashboardPage() {
           color={metrics.debtToAsset > 0.5 ? 'red' : 'green'}
         />
       </Flex>
+
+      {metrics.upcomingNotes.length > 0 && (
+        <Card>
+          <Flex direction="column" gap="2">
+            <Flex align="center" gap="2">
+              <Info size={14} />
+              <Text size="2" weight="bold">
+                Upcoming
+              </Text>
+            </Flex>
+            {metrics.upcomingNotes.map((note) => (
+              <Text key={note.name} size="2" color="gray">
+                From {note.date}: expenses increase by {fmt(note.monthlyAmount)}
+                /mo due to <strong>{note.name}</strong>
+              </Text>
+            ))}
+          </Flex>
+        </Card>
+      )}
 
       <Card>
         <Flex direction="column" gap="3">
@@ -231,6 +297,22 @@ export default function DashboardPage() {
             </>
           )}
 
+          {metrics.ownershipExpenses.length > 0 && (
+            <>
+              <Text size="2" weight="bold" color="gray">
+                Ownership Costs
+              </Text>
+              {metrics.ownershipExpenses.map((e) => (
+                <Row
+                  key={e.id}
+                  label={e.name}
+                  value={`${fmt(toMonthly(e.amount, e.frequency))}/mo`}
+                  indent
+                />
+              ))}
+            </>
+          )}
+
           <Row
             label="Total Expenses"
             value={`${fmt(metrics.totalExpenses)}/mo`}
@@ -270,6 +352,11 @@ export default function DashboardPage() {
                   <Badge size="1" variant="soft">
                     {a.type}
                   </Badge>
+                  {a.usage && (
+                    <Badge size="1" variant="soft" color="blue">
+                      {a.usage}
+                    </Badge>
+                  )}
                 </Flex>
                 <Flex align="center" gap="2">
                   <Text size="2" weight="bold">
@@ -291,12 +378,12 @@ export default function DashboardPage() {
           <Text size="2" weight="bold" color="gray">
             Liabilities
           </Text>
-          {store.liabilities.length === 0 && (
+          {metrics.activeLoans.length === 0 && (
             <Text size="2" color="gray">
-              No liabilities yet
+              No active liabilities
             </Text>
           )}
-          {store.liabilities.filter(isLoan).map((l) => (
+          {metrics.activeLoans.map((l) => (
             <Row
               key={l.id}
               label={l.name}

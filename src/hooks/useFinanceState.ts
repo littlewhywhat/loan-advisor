@@ -6,7 +6,6 @@ import type {
   AssetUpdate,
   Currency,
   Expense,
-  ExpenseInput,
   ExpenseUpdate,
   FinanceStore,
   Income,
@@ -54,20 +53,54 @@ function loadStore(mode: AppMode): FinanceStore {
   return { ...EMPTY_STORE };
 }
 
-function stamp<T>(
-  input: T,
-): T & { id: string; createdAt: string; updatedAt: string } {
-  const now = new Date().toISOString();
-  return {
-    ...input,
-    id: crypto.randomUUID(),
-    createdAt: now,
-    updatedAt: now,
-  };
+function uid(): string {
+  return crypto.randomUUID();
 }
 
 function now(): string {
   return new Date().toISOString();
+}
+
+function stamp<T>(
+  input: T,
+  id?: string,
+): T & { id: string; createdAt: string; updatedAt: string } {
+  const ts = now();
+  return { ...input, id: id ?? uid(), createdAt: ts, updatedAt: ts };
+}
+
+function buildExpenseForLiability(
+  input: LiabilityInput,
+  liabilityId: string,
+  fallbackCurrency: string,
+): Expense {
+  const ts = now();
+  if (input.type === 'loan') {
+    return {
+      id: uid(),
+      name: `${input.name} Payment`,
+      category: 'liability',
+      amount: input.monthlyPayment,
+      frequency: 'monthly',
+      isEssential: true,
+      currency: fallbackCurrency,
+      linkedLiabilityId: liabilityId,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+  }
+  return {
+    id: uid(),
+    name: input.name,
+    category: 'ownership',
+    amount: input.amount,
+    frequency: input.frequency,
+    isEssential: true,
+    currency: input.currency,
+    linkedLiabilityId: liabilityId,
+    createdAt: ts,
+    updatedAt: ts,
+  };
 }
 
 export function useFinanceState() {
@@ -87,11 +120,14 @@ export function useFinanceState() {
   const setCurrency = (currency: Currency) =>
     setState((prev) => ({ ...prev, currency }));
 
-  const addAsset = (input: AssetInput) =>
+  const addAsset = (input: AssetInput): string => {
+    const id = uid();
     setState((prev) => ({
       ...prev,
-      assets: [...prev.assets, stamp(input) as Asset],
+      assets: [...prev.assets, stamp(input, id) as Asset],
     }));
+    return id;
+  };
 
   const updateAsset = (id: string, updates: AssetUpdate) =>
     setState((prev) => ({
@@ -107,31 +143,69 @@ export function useFinanceState() {
       assets: prev.assets.filter((a) => a.id !== id),
     }));
 
-  const addLiability = (input: LiabilityInput) =>
-    setState((prev) => ({
-      ...prev,
-      liabilities: [...prev.liabilities, stamp(input) as Liability],
-    }));
+  const addLiability = (input: LiabilityInput): string => {
+    const id = uid();
+    setState((prev) => {
+      const liability = stamp(input, id) as Liability;
+      const expense = buildExpenseForLiability(input, id, prev.currency);
+      return {
+        ...prev,
+        liabilities: [...prev.liabilities, liability],
+        expenses: [...prev.expenses, expense],
+      };
+    });
+    return id;
+  };
 
   const updateLiability = (id: string, updates: LiabilityUpdate) =>
-    setState((prev) => ({
-      ...prev,
-      liabilities: prev.liabilities.map((l) =>
+    setState((prev) => {
+      const liabilities = prev.liabilities.map((l) =>
         l.id === id ? ({ ...l, ...updates, updatedAt: now() } as Liability) : l,
-      ),
-    }));
+      );
+
+      const updated = liabilities.find((l) => l.id === id);
+      let expenses = prev.expenses;
+      if (updated) {
+        const ts = now();
+        expenses = prev.expenses.map((e) => {
+          if (e.linkedLiabilityId !== id) return e;
+          if (updated.type === 'loan') {
+            return {
+              ...e,
+              name: `${updated.name} Payment`,
+              amount: updated.monthlyPayment,
+              frequency: 'monthly' as const,
+              updatedAt: ts,
+            };
+          }
+          return {
+            ...e,
+            name: updated.name,
+            amount: updated.amount,
+            frequency: updated.frequency,
+            updatedAt: ts,
+          };
+        });
+      }
+
+      return { ...prev, liabilities, expenses };
+    });
 
   const removeLiability = (id: string) =>
     setState((prev) => ({
       ...prev,
       liabilities: prev.liabilities.filter((l) => l.id !== id),
+      expenses: prev.expenses.filter((e) => e.linkedLiabilityId !== id),
     }));
 
-  const addIncome = (input: IncomeInput) =>
+  const addIncome = (input: IncomeInput): string => {
+    const id = uid();
     setState((prev) => ({
       ...prev,
-      incomes: [...prev.incomes, stamp(input) as Income],
+      incomes: [...prev.incomes, stamp(input, id) as Income],
     }));
+    return id;
+  };
 
   const updateIncome = (id: string, updates: IncomeUpdate) =>
     setState((prev) => ({
@@ -147,7 +221,7 @@ export function useFinanceState() {
       incomes: prev.incomes.filter((i) => i.id !== id),
     }));
 
-  const addExpense = (input: ExpenseInput) =>
+  const addExpense = (input: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>) =>
     setState((prev) => ({
       ...prev,
       expenses: [...prev.expenses, stamp(input) as Expense],

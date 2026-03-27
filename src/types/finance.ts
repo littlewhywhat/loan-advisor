@@ -4,18 +4,23 @@ export type Frequency = 'monthly' | 'quarterly' | 'annually';
 
 export type AssetType = 'cash' | 'real_estate' | 'etf' | 'crypto';
 
+export type RealEstateUsage = 'living' | 'leasing';
+
 export type Asset = {
   id: string;
   name: string;
   type: AssetType;
   value: number;
   currency: Currency;
+  yearlyGrowthRate: number | null;
+  usage: RealEstateUsage | null;
+  rentSavings: number | null;
   linkedIncomeIds: string[];
   createdAt: string;
   updatedAt: string;
 };
 
-export type LiabilityType = 'loan' | 'rental';
+export type LiabilityType = 'loan' | 'recurring';
 
 export type LoanType =
   | 'living_mortgage'
@@ -42,11 +47,15 @@ export type Loan = LiabilityBase & {
   linkedAssetId: string | null;
 };
 
-export type Rental = LiabilityBase & {
-  type: 'rental';
+export type Recurring = LiabilityBase & {
+  type: 'recurring';
+  amount: number;
+  frequency: Frequency;
+  currency: string;
+  linkedAssetId: string | null;
 };
 
-export type Liability = Loan | Rental;
+export type Liability = Loan | Recurring;
 
 export type IncomeType = 'salary' | 'rental' | 'dividends';
 
@@ -63,7 +72,7 @@ export type Income = {
   updatedAt: string;
 };
 
-export type ExpenseCategory = 'living_expense' | 'liability';
+export type ExpenseCategory = 'living_expense' | 'liability' | 'ownership';
 
 export type Expense = {
   id: string;
