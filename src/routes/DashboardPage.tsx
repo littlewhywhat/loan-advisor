@@ -142,10 +142,14 @@ export default function DashboardPage() {
       const amount = expense
         ? toMonthly(expense.amount, expense.frequency)
         : l.monthlyPayment;
+      const asset = store.assets.find((a) => a.id === l.linkedAssetId);
       return {
         name: l.name,
         date: l.startDate,
         monthlyAmount: amount,
+        assetName: asset?.name ?? null,
+        assetValue: asset?.value ?? null,
+        loanAmount: l.originalAmount,
       };
     });
 
@@ -218,10 +222,21 @@ export default function DashboardPage() {
               </Text>
             </Flex>
             {metrics.upcomingNotes.map((note) => (
-              <Text key={note.name} size="2" color="gray">
-                From {note.date}: expenses increase by {fmt(note.monthlyAmount)}
-                /mo due to <strong>{note.name}</strong>
-              </Text>
+              <Flex key={note.name} direction="column" gap="1">
+                <Text size="2" color="gray">
+                  From {note.date}: expenses increase by{' '}
+                  {fmt(note.monthlyAmount)}
+                  /mo due to <strong>{note.name}</strong>
+                </Text>
+                {note.assetName && note.assetValue != null && (
+                  <Flex pl="4">
+                    <Text size="1" color="gray">
+                      Balance sheet: +{fmt(note.assetValue)} asset (
+                      {note.assetName}), +{fmt(note.loanAmount)} liability
+                    </Text>
+                  </Flex>
+                )}
+              </Flex>
             ))}
           </Flex>
         </Card>
