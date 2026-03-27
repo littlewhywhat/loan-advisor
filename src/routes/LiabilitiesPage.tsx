@@ -210,7 +210,10 @@ export default function LiabilitiesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Liability | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const loans = store.liabilities.filter(isLoan);
+  const allLoans = store.liabilities.filter(isLoan);
+  const isFuture = (l: Loan) => new Date(l.startDate) > new Date();
+  const activeLoans = allLoans.filter((l) => !isFuture(l));
+  const futureLoans = allLoans.filter(isFuture);
   const recurrings = store.liabilities.filter(isRecurring);
 
   const computed = useMemo(() => {
@@ -329,6 +332,94 @@ export default function LiabilitiesPage() {
     return store.assets.find((a) => a.id === assetId)?.name ?? null;
   };
 
+  const renderLoanCard = (loan: Loan, showStartDate: boolean) => {
+    const assetName = assetNameById(loan.linkedAssetId);
+    const expanded = expandedId === loan.id;
+    const balance = liveBalance(loan);
+    return (
+      <Card key={loan.id} style={showStartDate ? { opacity: 0.75 } : undefined}>
+        <Flex direction="column" gap="2">
+          <Flex justify="between" align="center">
+            <Flex align="center" gap="2">
+              <Text size="3" weight="bold">
+                {loan.name}
+              </Text>
+              <Badge size="1" variant="soft">
+                {LOAN_TYPE_LABELS[loan.loanType]}
+              </Badge>
+              {showStartDate && (
+                <Badge size="1" variant="soft" color="blue">
+                  Starts {loan.startDate}
+                </Badge>
+              )}
+            </Flex>
+            <Flex gap="2">
+              <Button
+                size="1"
+                variant="ghost"
+                onClick={() => setExpandedId(expanded ? null : loan.id)}
+              >
+                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </Button>
+              <Button
+                size="1"
+                variant="ghost"
+                onClick={() => openEditLoan(loan)}
+              >
+                <Pencil size={14} />
+              </Button>
+              <Button
+                size="1"
+                variant="ghost"
+                color="red"
+                onClick={() => setDeleteTarget(loan)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            </Flex>
+          </Flex>
+
+          <Flex gap="5" wrap="wrap">
+            <Flex direction="column">
+              <Text size="1" color="gray">
+                {showStartDate ? 'Amount' : 'Remaining'}
+              </Text>
+              <Text size="2" weight="bold">
+                {formatMoney(showStartDate ? loan.originalAmount : balance)}
+              </Text>
+            </Flex>
+            <Flex direction="column">
+              <Text size="1" color="gray">
+                Monthly Payment
+              </Text>
+              <Text size="2" weight="bold">
+                {formatMoney(loan.monthlyPayment)}
+              </Text>
+            </Flex>
+            <Flex direction="column">
+              <Text size="1" color="gray">
+                Rate
+              </Text>
+              <Text size="2" weight="bold">
+                {(loan.interestRate * 100).toFixed(1)}%
+              </Text>
+            </Flex>
+            {assetName && (
+              <Flex direction="column">
+                <Text size="1" color="gray">
+                  Asset
+                </Text>
+                <Text size="2">{assetName}</Text>
+              </Flex>
+            )}
+          </Flex>
+
+          {expanded && !showStartDate && <AmortizationTable loan={loan} />}
+        </Flex>
+      </Card>
+    );
+  };
+
   return (
     <Flex direction="column" gap="5" style={{ maxWidth: 720 }}>
       <Flex justify="between" align="center">
@@ -345,7 +436,7 @@ export default function LiabilitiesPage() {
         </Flex>
       </Flex>
 
-      {loans.length === 0 && recurrings.length === 0 && (
+      {allLoans.length === 0 && recurrings.length === 0 && (
         <Card>
           <Text size="3" color="gray" align="center">
             No liabilities yet. Add a loan or recurring cost to get started.
@@ -353,97 +444,21 @@ export default function LiabilitiesPage() {
         </Card>
       )}
 
-      {loans.length > 0 && (
+      {activeLoans.length > 0 && (
         <Flex direction="column" gap="3">
           <Text size="2" weight="bold" color="gray">
             Loans
           </Text>
-          {loans.map((loan) => {
-            const assetName = assetNameById(loan.linkedAssetId);
-            const expanded = expandedId === loan.id;
-            const balance = liveBalance(loan);
-            return (
-              <Card key={loan.id}>
-                <Flex direction="column" gap="2">
-                  <Flex justify="between" align="center">
-                    <Flex align="center" gap="2">
-                      <Text size="3" weight="bold">
-                        {loan.name}
-                      </Text>
-                      <Badge size="1" variant="soft">
-                        {LOAN_TYPE_LABELS[loan.loanType]}
-                      </Badge>
-                    </Flex>
-                    <Flex gap="2">
-                      <Button
-                        size="1"
-                        variant="ghost"
-                        onClick={() => setExpandedId(expanded ? null : loan.id)}
-                      >
-                        {expanded ? (
-                          <ChevronUp size={14} />
-                        ) : (
-                          <ChevronDown size={14} />
-                        )}
-                      </Button>
-                      <Button
-                        size="1"
-                        variant="ghost"
-                        onClick={() => openEditLoan(loan)}
-                      >
-                        <Pencil size={14} />
-                      </Button>
-                      <Button
-                        size="1"
-                        variant="ghost"
-                        color="red"
-                        onClick={() => setDeleteTarget(loan)}
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </Flex>
-                  </Flex>
+          {activeLoans.map((loan) => renderLoanCard(loan, false))}
+        </Flex>
+      )}
 
-                  <Flex gap="5" wrap="wrap">
-                    <Flex direction="column">
-                      <Text size="1" color="gray">
-                        Remaining
-                      </Text>
-                      <Text size="2" weight="bold">
-                        {formatMoney(balance)}
-                      </Text>
-                    </Flex>
-                    <Flex direction="column">
-                      <Text size="1" color="gray">
-                        Monthly Payment
-                      </Text>
-                      <Text size="2" weight="bold">
-                        {formatMoney(loan.monthlyPayment)}
-                      </Text>
-                    </Flex>
-                    <Flex direction="column">
-                      <Text size="1" color="gray">
-                        Rate
-                      </Text>
-                      <Text size="2" weight="bold">
-                        {(loan.interestRate * 100).toFixed(1)}%
-                      </Text>
-                    </Flex>
-                    {assetName && (
-                      <Flex direction="column">
-                        <Text size="1" color="gray">
-                          Asset
-                        </Text>
-                        <Text size="2">{assetName}</Text>
-                      </Flex>
-                    )}
-                  </Flex>
-
-                  {expanded && <AmortizationTable loan={loan} />}
-                </Flex>
-              </Card>
-            );
-          })}
+      {futureLoans.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="2" weight="bold" color="gray">
+            Upcoming Loans
+          </Text>
+          {futureLoans.map((loan) => renderLoanCard(loan, true))}
         </Flex>
       )}
 

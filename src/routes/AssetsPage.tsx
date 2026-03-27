@@ -12,7 +12,7 @@ import {
   TextField,
 } from '@radix-ui/themes';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useFinance } from '@/context/FinanceProvider';
 import { formatMoney, toMonthly } from '@/lib/format';
 import type {
@@ -20,6 +20,7 @@ import type {
   AssetType,
   Currency,
   Frequency,
+  Loan,
   RealEstateUsage,
 } from '@/types/finance';
 
@@ -229,9 +230,175 @@ export default function AssetsPage() {
   const linkedIncomes = (asset: Asset) =>
     store.incomes.filter((i) => asset.linkedIncomeIds.includes(i.id));
 
+  const { activeAssets, futureAssets } = useMemo(() => {
+    const futureLoansByAsset = new Map<string, Loan>();
+    for (const l of store.liabilities) {
+      if (l.type === 'loan' && new Date(l.startDate) > new Date()) {
+        futureLoansByAsset.set(l.linkedAssetId, l);
+      }
+    }
+    const active: Asset[] = [];
+    const future: { asset: Asset; startDate: string }[] = [];
+    for (const a of store.assets) {
+      const futureLoan = futureLoansByAsset.get(a.id);
+      if (futureLoan) {
+        future.push({ asset: a, startDate: futureLoan.startDate });
+      } else {
+        active.push(a);
+      }
+    }
+    return { activeAssets: active, futureAssets: future };
+  }, [store.assets, store.liabilities]);
+
   const isRealEstate = form.type === 'real_estate';
   const isLeasing = isRealEstate && form.usage === 'leasing';
   const isLiving = isRealEstate && form.usage === 'living';
+
+  const renderAssetCard = (asset: Asset, futureStartDate: string | null) => {
+    const loan = linkedLoan(asset.id);
+    const recs = linkedRecurrings(asset.id);
+    const incms = linkedIncomes(asset);
+    const isFuture = futureStartDate !== null;
+    return (
+      <Card key={asset.id} style={isFuture ? { opacity: 0.75 } : undefined}>
+        <Flex direction="column" gap="2">
+          <Flex justify="between" align="center">
+            <Flex align="center" gap="2">
+              <Text size="3" weight="bold">
+                {asset.name}
+              </Text>
+              <Badge color={TYPE_COLORS[asset.type]} size="1">
+                {TYPE_LABELS[asset.type]}
+              </Badge>
+              {asset.usage && (
+                <Badge size="1" variant="soft">
+                  {USAGE_LABELS[asset.usage]}
+                </Badge>
+              )}
+              {isFuture && (
+                <Badge size="1" variant="soft" color="blue">
+                  Starts {futureStartDate}
+                </Badge>
+              )}
+            </Flex>
+            <Flex gap="2">
+              <Button size="1" variant="ghost" onClick={() => openEdit(asset)}>
+                <Pencil size={14} />
+              </Button>
+              <Button
+                size="1"
+                variant="ghost"
+                color="red"
+                onClick={() => setDeleteTarget(asset)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            </Flex>
+          </Flex>
+
+          <Flex gap="5" wrap="wrap">
+            <Flex direction="column">
+              <Text size="1" color="gray">
+                Value
+              </Text>
+              <Text size="2" weight="bold">
+                {formatMoney(asset.value, asset.currency)}
+              </Text>
+            </Flex>
+            {asset.yearlyGrowthRate != null && (
+              <Flex direction="column">
+                <Text size="1" color="gray">
+                  Growth Rate
+                </Text>
+                <Text size="2" weight="bold">
+                  {(asset.yearlyGrowthRate * 100).toFixed(1)}%/yr
+                </Text>
+              </Flex>
+            )}
+            {asset.rentSavings != null && (
+              <Flex direction="column">
+                <Text size="1" color="gray">
+                  Rent Savings
+                </Text>
+                <Text size="2" weight="bold">
+                  {formatMoney(asset.rentSavings, asset.currency)}/mo
+                </Text>
+              </Flex>
+            )}
+            {loan && !isFuture && (
+              <Flex direction="column">
+                <Text size="1" color="gray">
+                  Equity
+                </Text>
+                <Text size="2" weight="bold">
+                  {formatMoney(
+                    asset.value -
+                      (loan as { currentBalance: number }).currentBalance,
+                    asset.currency,
+                  )}
+                </Text>
+              </Flex>
+            )}
+          </Flex>
+
+          {incms.length > 0 && (
+            <Flex gap="1" align="center">
+              <Text size="1" color="gray">
+                Income:
+              </Text>
+              {incms.map((inc) => (
+                <Badge key={inc.id} size="1" variant="soft" color="green">
+                  {inc.name} —{' '}
+                  {formatMoney(
+                    toMonthly(inc.amount, inc.frequency),
+                    inc.currency as Currency,
+                  )}
+                  /mo
+                </Badge>
+              ))}
+            </Flex>
+          )}
+
+          {recs.length > 0 && (
+            <Flex gap="1" align="center">
+              <Text size="1" color="gray">
+                Costs:
+              </Text>
+              {recs.map((r) => (
+                <Badge key={r.id} size="1" variant="soft" color="orange">
+                  {r.name} —{' '}
+                  {formatMoney(
+                    toMonthly(
+                      (r as { amount: number }).amount,
+                      (r as { frequency: Frequency }).frequency,
+                    ),
+                    (r as { currency: string }).currency as Currency,
+                  )}
+                  /mo
+                </Badge>
+              ))}
+            </Flex>
+          )}
+
+          {loan && (
+            <Flex gap="1" align="center">
+              <Text size="1" color="gray">
+                Loan:
+              </Text>
+              <Badge size="1" variant="soft" color="red">
+                {loan.name} —{' '}
+                {formatMoney(
+                  (loan as { currentBalance: number }).currentBalance,
+                  asset.currency,
+                )}{' '}
+                remaining
+              </Badge>
+            </Flex>
+          )}
+        </Flex>
+      </Card>
+    );
+  };
 
   return (
     <Flex direction="column" gap="5" style={{ maxWidth: 720 }}>
@@ -251,152 +418,22 @@ export default function AssetsPage() {
         </Card>
       )}
 
-      {store.assets.map((asset) => {
-        const loan = linkedLoan(asset.id);
-        const recurrings = linkedRecurrings(asset.id);
-        const incomes = linkedIncomes(asset);
-        return (
-          <Card key={asset.id}>
-            <Flex direction="column" gap="2">
-              <Flex justify="between" align="center">
-                <Flex align="center" gap="2">
-                  <Text size="3" weight="bold">
-                    {asset.name}
-                  </Text>
-                  <Badge color={TYPE_COLORS[asset.type]} size="1">
-                    {TYPE_LABELS[asset.type]}
-                  </Badge>
-                  {asset.usage && (
-                    <Badge size="1" variant="soft">
-                      {USAGE_LABELS[asset.usage]}
-                    </Badge>
-                  )}
-                </Flex>
-                <Flex gap="2">
-                  <Button
-                    size="1"
-                    variant="ghost"
-                    onClick={() => openEdit(asset)}
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                  <Button
-                    size="1"
-                    variant="ghost"
-                    color="red"
-                    onClick={() => setDeleteTarget(asset)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </Flex>
-              </Flex>
+      {activeAssets.length > 0 && (
+        <Flex direction="column" gap="3">
+          {activeAssets.map((asset) => renderAssetCard(asset, null))}
+        </Flex>
+      )}
 
-              <Flex gap="5" wrap="wrap">
-                <Flex direction="column">
-                  <Text size="1" color="gray">
-                    Value
-                  </Text>
-                  <Text size="2" weight="bold">
-                    {formatMoney(asset.value, asset.currency)}
-                  </Text>
-                </Flex>
-
-                {asset.yearlyGrowthRate != null && (
-                  <Flex direction="column">
-                    <Text size="1" color="gray">
-                      Growth Rate
-                    </Text>
-                    <Text size="2" weight="bold">
-                      {(asset.yearlyGrowthRate * 100).toFixed(1)}%/yr
-                    </Text>
-                  </Flex>
-                )}
-
-                {asset.rentSavings != null && (
-                  <Flex direction="column">
-                    <Text size="1" color="gray">
-                      Rent Savings
-                    </Text>
-                    <Text size="2" weight="bold">
-                      {formatMoney(asset.rentSavings, asset.currency)}/mo
-                    </Text>
-                  </Flex>
-                )}
-
-                {loan && (
-                  <Flex direction="column">
-                    <Text size="1" color="gray">
-                      Equity
-                    </Text>
-                    <Text size="2" weight="bold">
-                      {formatMoney(
-                        asset.value -
-                          (loan as { currentBalance: number }).currentBalance,
-                        asset.currency,
-                      )}
-                    </Text>
-                  </Flex>
-                )}
-              </Flex>
-
-              {incomes.length > 0 && (
-                <Flex gap="1" align="center">
-                  <Text size="1" color="gray">
-                    Income:
-                  </Text>
-                  {incomes.map((inc) => (
-                    <Badge key={inc.id} size="1" variant="soft" color="green">
-                      {inc.name} —{' '}
-                      {formatMoney(
-                        toMonthly(inc.amount, inc.frequency),
-                        inc.currency as Currency,
-                      )}
-                      /mo
-                    </Badge>
-                  ))}
-                </Flex>
-              )}
-
-              {recurrings.length > 0 && (
-                <Flex gap="1" align="center">
-                  <Text size="1" color="gray">
-                    Costs:
-                  </Text>
-                  {recurrings.map((r) => (
-                    <Badge key={r.id} size="1" variant="soft" color="orange">
-                      {r.name} —{' '}
-                      {formatMoney(
-                        toMonthly(
-                          (r as { amount: number }).amount,
-                          (r as { frequency: Frequency }).frequency,
-                        ),
-                        (r as { currency: string }).currency as Currency,
-                      )}
-                      /mo
-                    </Badge>
-                  ))}
-                </Flex>
-              )}
-
-              {loan && (
-                <Flex gap="1" align="center">
-                  <Text size="1" color="gray">
-                    Loan:
-                  </Text>
-                  <Badge size="1" variant="soft" color="red">
-                    {loan.name} —{' '}
-                    {formatMoney(
-                      (loan as { currentBalance: number }).currentBalance,
-                      asset.currency,
-                    )}{' '}
-                    remaining
-                  </Badge>
-                </Flex>
-              )}
-            </Flex>
-          </Card>
-        );
-      })}
+      {futureAssets.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="2" weight="bold" color="gray">
+            Upcoming
+          </Text>
+          {futureAssets.map(({ asset, startDate }) =>
+            renderAssetCard(asset, startDate),
+          )}
+        </Flex>
+      )}
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="500px">
