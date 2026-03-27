@@ -84,6 +84,7 @@ export default function DashboardPage() {
 
     const activeLoanIds = new Set(activeLoans.map((l) => l.id));
     const futureLoanIds = new Set(futureLoans.map((l) => l.id));
+    const futureLoanAssetIds = new Set(futureLoans.map((l) => l.linkedAssetId));
 
     const manualExpenses = store.expenses.filter(
       (e) => e.category === 'living_expense',
@@ -120,7 +121,10 @@ export default function DashboardPage() {
 
     const cashFlow = totalIncome - totalExpenses;
 
-    const totalAssets = store.assets.reduce((sum, a) => sum + a.value, 0);
+    const activeAssets = store.assets.filter(
+      (a) => !futureLoanAssetIds.has(a.id),
+    );
+    const totalAssets = activeAssets.reduce((sum, a) => sum + a.value, 0);
     const totalLiabilities = activeLoans.reduce(
       (sum, l) => sum + liveBalance(l),
       0,
@@ -159,6 +163,7 @@ export default function DashboardPage() {
       totalOwnership,
       totalExpenses,
       cashFlow,
+      activeAssets,
       totalAssets,
       totalLiabilities,
       netWorth,
@@ -337,12 +342,12 @@ export default function DashboardPage() {
           <Text size="2" weight="bold" color="gray">
             Assets
           </Text>
-          {store.assets.length === 0 && (
+          {metrics.activeAssets.length === 0 && (
             <Text size="2" color="gray">
               No assets yet
             </Text>
           )}
-          {store.assets.map((a) => {
+          {metrics.activeAssets.map((a) => {
             const linked = linkedLiabilityFor(a.id);
             return (
               <Flex key={a.id} justify="between" align="center" pl="4">
