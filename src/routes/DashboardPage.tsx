@@ -212,6 +212,9 @@ export default function DashboardPage() {
         />
       </Flex>
 
+      {/* doesnt make much sense for now:
+       - we need to specify if down payment where from the cash flows
+       - for that i need to know the future value of cash
       {metrics.upcomingNotes.length > 0 && (
         <Card>
           <Flex direction="column" gap="2">
@@ -240,7 +243,7 @@ export default function DashboardPage() {
             ))}
           </Flex>
         </Card>
-      )}
+      )} */}
 
       <Card>
         <Flex direction="column" gap="3">
