@@ -2,7 +2,7 @@ export type Currency = 'CZK' | 'EUR';
 
 export type Frequency = 'monthly' | 'quarterly' | 'annually';
 
-export type AssetType = 'cash' | 'real_estate' | 'etf' | 'crypto';
+export type AssetType = 'cash' | 'real_estate' | 'etf' | 'crypto' | 'other';
 
 export type RealEstateUsage = 'living' | 'leasing';
 
@@ -44,7 +44,7 @@ export type Loan = LiabilityBase & {
   monthlyPayment: number;
   startDate: string;
   endDate: string | null;
-  linkedAssetId: string | null;
+  linkedAssetId: string;
 };
 
 export type Recurring = LiabilityBase & {

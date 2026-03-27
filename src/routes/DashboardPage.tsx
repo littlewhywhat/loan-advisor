@@ -3,6 +3,7 @@ import { Info } from 'lucide-react';
 import { useMemo } from 'react';
 import { useFinance } from '@/context/FinanceProvider';
 import { formatMoney, toMonthly } from '@/lib/format';
+import { liveBalance } from '@/lib/loanCalc';
 import type { Loan } from '@/types/finance';
 
 function Row({
@@ -121,7 +122,7 @@ export default function DashboardPage() {
 
     const totalAssets = store.assets.reduce((sum, a) => sum + a.value, 0);
     const totalLiabilities = activeLoans.reduce(
-      (sum, l) => sum + l.currentBalance,
+      (sum, l) => sum + liveBalance(l),
       0,
     );
     const netWorth = totalAssets - totalLiabilities;
@@ -364,7 +365,7 @@ export default function DashboardPage() {
                   </Text>
                   {linked && (
                     <Text size="1" color="gray">
-                      (equity {fmt(a.value - linked.currentBalance)})
+                      (equity {fmt(a.value - liveBalance(linked))})
                     </Text>
                   )}
                 </Flex>
@@ -384,12 +385,7 @@ export default function DashboardPage() {
             </Text>
           )}
           {metrics.activeLoans.map((l) => (
-            <Row
-              key={l.id}
-              label={l.name}
-              value={fmt(l.currentBalance)}
-              indent
-            />
+            <Row key={l.id} label={l.name} value={fmt(liveBalance(l))} indent />
           ))}
           <Row
             label="Total Liabilities"

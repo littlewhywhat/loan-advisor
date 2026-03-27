@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import { useFinance } from '@/context/FinanceProvider';
 import { buildAmortizationSchedule } from '@/lib/amortization';
 import { formatMoney, toMonthly } from '@/lib/format';
+import { computeLoanDerived, liveBalance } from '@/lib/loanCalc';
 import type {
   AssetType,
   Currency,
@@ -47,11 +48,20 @@ const FREQ_LABELS: Record<Frequency, string> = {
   annually: 'Annually',
 };
 
+const ALL_ASSET_TYPES: AssetType[] = [
+  'real_estate',
+  'cash',
+  'etf',
+  'crypto',
+  'other',
+];
+
 const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   cash: 'Cash',
   real_estate: 'Real Estate',
   etf: 'ETF',
   crypto: 'Crypto',
+  other: 'Other',
 };
 
 function isLoan(l: Liability): l is Loan {
@@ -66,16 +76,13 @@ type LoanFormData = {
   name: string;
   loanType: LoanType;
   originalAmount: number;
-  currentBalance: number;
   interestRate: number;
-  monthlyPayment: number;
   startDate: string;
   endDate: string;
   linkedAssetId: string;
-  createAsset: boolean;
-  newAssetName: string;
-  newAssetType: AssetType;
-  newAssetValue: number;
+  assetName: string;
+  assetType: AssetType;
+  assetValue: number;
 };
 
 type RecurringFormData = {
@@ -91,16 +98,13 @@ function emptyLoanForm(): LoanFormData {
     name: '',
     loanType: 'living_mortgage',
     originalAmount: 0,
-    currentBalance: 0,
     interestRate: 0.05,
-    monthlyPayment: 0,
     startDate: new Date().toISOString().slice(0, 10),
     endDate: '',
     linkedAssetId: '',
-    createAsset: false,
-    newAssetName: '',
-    newAssetType: 'real_estate',
-    newAssetValue: 0,
+    assetName: '',
+    assetType: 'real_estate',
+    assetValue: 0,
   };
 }
 
@@ -119,16 +123,13 @@ function loanToForm(l: Loan): LoanFormData {
     name: l.name,
     loanType: l.loanType,
     originalAmount: l.originalAmount,
-    currentBalance: l.currentBalance,
     interestRate: l.interestRate,
-    monthlyPayment: l.monthlyPayment,
     startDate: l.startDate.slice(0, 10),
     endDate: l.endDate?.slice(0, 10) ?? '',
-    linkedAssetId: l.linkedAssetId ?? '',
-    createAsset: false,
-    newAssetName: '',
-    newAssetType: 'real_estate',
-    newAssetValue: 0,
+    linkedAssetId: l.linkedAssetId,
+    assetName: '',
+    assetType: 'real_estate',
+    assetValue: 0,
   };
 }
 
@@ -139,21 +140,6 @@ function recurringToForm(r: Recurring): RecurringFormData {
     frequency: r.frequency,
     currency: r.currency as Currency,
     linkedAssetId: r.linkedAssetId ?? '',
-  };
-}
-
-function loanFormToInput(f: LoanFormData): LiabilityInput {
-  return {
-    type: 'loan',
-    name: f.name,
-    loanType: f.loanType,
-    originalAmount: f.originalAmount,
-    currentBalance: f.currentBalance,
-    interestRate: f.interestRate,
-    monthlyPayment: f.monthlyPayment,
-    startDate: f.startDate,
-    endDate: f.endDate || null,
-    linkedAssetId: f.linkedAssetId || null,
   };
 }
 
@@ -168,26 +154,16 @@ function recurringFormToInput(f: RecurringFormData): LiabilityInput {
   };
 }
 
-function computeMonthlyPayment(
-  principal: number,
-  annualRate: number,
-  months: number,
-): number {
-  if (months <= 0 || principal <= 0) return 0;
-  const r = annualRate / 12;
-  if (r === 0) return principal / months;
-  return (principal * r * (1 + r) ** months) / ((1 + r) ** months - 1);
-}
-
 function AmortizationTable({ loan }: { loan: Loan }) {
+  const balance = liveBalance(loan);
   const schedule = useMemo(
     () =>
       buildAmortizationSchedule(
-        loan.currentBalance,
+        balance,
         loan.interestRate,
         loan.monthlyPayment,
       ),
-    [loan.currentBalance, loan.interestRate, loan.monthlyPayment],
+    [balance, loan.interestRate, loan.monthlyPayment],
   );
 
   if (schedule.length === 0) return null;
@@ -237,6 +213,28 @@ export default function LiabilitiesPage() {
   const loans = store.liabilities.filter(isLoan);
   const recurrings = store.liabilities.filter(isRecurring);
 
+  const computed = useMemo(() => {
+    if (
+      !loanForm.originalAmount ||
+      !loanForm.interestRate ||
+      !loanForm.startDate ||
+      !loanForm.endDate
+    ) {
+      return null;
+    }
+    return computeLoanDerived(
+      loanForm.originalAmount,
+      loanForm.interestRate,
+      loanForm.startDate,
+      loanForm.endDate,
+    );
+  }, [
+    loanForm.originalAmount,
+    loanForm.interestRate,
+    loanForm.startDate,
+    loanForm.endDate,
+  ]);
+
   const openAddLoan = () => {
     setEditingId(null);
     setLoanForm(emptyLoanForm());
@@ -262,30 +260,50 @@ export default function LiabilitiesPage() {
   };
 
   const handleSaveLoan = () => {
-    if (!loanForm.name.trim()) return;
+    if (!loanForm.name.trim() || !computed) return;
 
     if (editingId) {
-      updateLiability(editingId, loanFormToInput(loanForm));
+      updateLiability(editingId, {
+        type: 'loan',
+        name: loanForm.name,
+        loanType: loanForm.loanType,
+        originalAmount: loanForm.originalAmount,
+        currentBalance: computed.currentBalance,
+        interestRate: loanForm.interestRate,
+        monthlyPayment: computed.monthlyPayment,
+        startDate: loanForm.startDate,
+        endDate: loanForm.endDate || null,
+        linkedAssetId: loanForm.linkedAssetId,
+      });
     } else {
-      let linkedAssetId = loanForm.linkedAssetId;
+      let assetId = loanForm.linkedAssetId;
 
-      if (loanForm.createAsset && loanForm.newAssetName.trim()) {
-        linkedAssetId = addAsset({
-          name: loanForm.newAssetName,
-          type: loanForm.newAssetType,
-          value: loanForm.newAssetValue,
+      if (!assetId) {
+        if (!loanForm.assetName.trim()) return;
+        assetId = addAsset({
+          name: loanForm.assetName,
+          type: loanForm.assetType,
+          value: loanForm.assetValue || loanForm.originalAmount,
           currency: store.currency,
           yearlyGrowthRate: null,
-          usage: loanForm.newAssetType === 'real_estate' ? 'living' : null,
+          usage: loanForm.assetType === 'real_estate' ? 'living' : null,
           rentSavings: null,
           linkedIncomeIds: [],
         });
       }
 
       addLiability({
-        ...loanFormToInput(loanForm),
-        linkedAssetId: linkedAssetId || null,
-      } as LiabilityInput);
+        type: 'loan',
+        name: loanForm.name,
+        loanType: loanForm.loanType,
+        originalAmount: loanForm.originalAmount,
+        currentBalance: computed.currentBalance,
+        interestRate: loanForm.interestRate,
+        monthlyPayment: computed.monthlyPayment,
+        startDate: loanForm.startDate,
+        endDate: loanForm.endDate || null,
+        linkedAssetId: assetId,
+      });
     }
     setLoanDialogOpen(false);
   };
@@ -306,44 +324,7 @@ export default function LiabilitiesPage() {
     setDeleteTarget(null);
   };
 
-  const autoCompute = (f: LoanFormData) => {
-    if (
-      f.startDate &&
-      f.endDate &&
-      f.currentBalance > 0 &&
-      f.interestRate > 0
-    ) {
-      const start = new Date(f.startDate);
-      const end = new Date(f.endDate);
-      const months =
-        (end.getFullYear() - start.getFullYear()) * 12 +
-        (end.getMonth() - start.getMonth());
-      if (months > 0) {
-        const remaining = Math.max(
-          0,
-          months -
-            Math.round(
-              (Date.now() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
-            ),
-        );
-        if (remaining > 0) {
-          return {
-            ...f,
-            monthlyPayment: Math.round(
-              computeMonthlyPayment(
-                f.currentBalance,
-                f.interestRate,
-                remaining,
-              ),
-            ),
-          };
-        }
-      }
-    }
-    return f;
-  };
-
-  const linkedAssetName = (assetId: string | null) => {
+  const assetNameById = (assetId: string | null) => {
     if (!assetId) return null;
     return store.assets.find((a) => a.id === assetId)?.name ?? null;
   };
@@ -378,8 +359,9 @@ export default function LiabilitiesPage() {
             Loans
           </Text>
           {loans.map((loan) => {
-            const assetName = linkedAssetName(loan.linkedAssetId);
+            const assetName = assetNameById(loan.linkedAssetId);
             const expanded = expandedId === loan.id;
+            const balance = liveBalance(loan);
             return (
               <Card key={loan.id}>
                 <Flex direction="column" gap="2">
@@ -428,7 +410,7 @@ export default function LiabilitiesPage() {
                         Remaining
                       </Text>
                       <Text size="2" weight="bold">
-                        {formatMoney(loan.currentBalance)}
+                        {formatMoney(balance)}
                       </Text>
                     </Flex>
                     <Flex direction="column">
@@ -450,7 +432,7 @@ export default function LiabilitiesPage() {
                     {assetName && (
                       <Flex direction="column">
                         <Text size="1" color="gray">
-                          Linked Asset
+                          Asset
                         </Text>
                         <Text size="2">{assetName}</Text>
                       </Flex>
@@ -471,7 +453,7 @@ export default function LiabilitiesPage() {
             Recurring Costs
           </Text>
           {recurrings.map((r) => {
-            const assetName = linkedAssetName(r.linkedAssetId);
+            const assetName = assetNameById(r.linkedAssetId);
             return (
               <Card key={r.id}>
                 <Flex justify="between" align="center">
@@ -535,20 +517,19 @@ export default function LiabilitiesPage() {
           <Dialog.Title>{editingId ? 'Edit Loan' : 'Add Loan'}</Dialog.Title>
 
           <Flex direction="column" gap="3" mt="3">
-            <div>
-              <Text size="2" weight="medium" mb="1" asChild>
-                <span>Name</span>
-              </Text>
-              <TextField.Root
-                value={loanForm.name}
-                onChange={(e) =>
-                  setLoanForm((f) => ({ ...f, name: e.target.value }))
-                }
-                placeholder="e.g. Home Mortgage"
-              />
-            </div>
-
             <Flex gap="3">
+              <div style={{ flex: 2 }}>
+                <Text size="2" weight="medium" mb="1" asChild>
+                  <span>Name</span>
+                </Text>
+                <TextField.Root
+                  value={loanForm.name}
+                  onChange={(e) =>
+                    setLoanForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                  placeholder="e.g. Home Mortgage"
+                />
+              </div>
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
                   <span>Loan Type</span>
@@ -569,121 +550,7 @@ export default function LiabilitiesPage() {
                   </Select.Content>
                 </Select.Root>
               </div>
-
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Linked Asset</span>
-                </Text>
-                <Select.Root
-                  value={
-                    loanForm.createAsset
-                      ? '_new'
-                      : loanForm.linkedAssetId || '_none'
-                  }
-                  onValueChange={(v) => {
-                    if (v === '_new') {
-                      setLoanForm((f) => ({
-                        ...f,
-                        linkedAssetId: '',
-                        createAsset: true,
-                      }));
-                    } else {
-                      setLoanForm((f) => ({
-                        ...f,
-                        linkedAssetId: v === '_none' ? '' : v,
-                        createAsset: false,
-                      }));
-                    }
-                  }}
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="_none">None</Select.Item>
-                    {!editingId && (
-                      <Select.Item value="_new">+ Create New Asset</Select.Item>
-                    )}
-                    {store.assets.map((a) => (
-                      <Select.Item key={a.id} value={a.id}>
-                        {a.name}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
             </Flex>
-
-            {loanForm.createAsset && !editingId && (
-              <Card variant="surface">
-                <Flex direction="column" gap="2">
-                  <Text size="2" weight="bold">
-                    New Asset
-                  </Text>
-                  <Flex gap="3">
-                    <div style={{ flex: 1 }}>
-                      <Text size="1" weight="medium" asChild>
-                        <span>Name</span>
-                      </Text>
-                      <TextField.Root
-                        value={loanForm.newAssetName}
-                        onChange={(e) =>
-                          setLoanForm((f) => ({
-                            ...f,
-                            newAssetName: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g. My Apartment"
-                      />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <Text size="1" weight="medium" asChild>
-                        <span>Type</span>
-                      </Text>
-                      <Select.Root
-                        value={loanForm.newAssetType}
-                        onValueChange={(v) =>
-                          setLoanForm((f) => ({
-                            ...f,
-                            newAssetType: v as AssetType,
-                          }))
-                        }
-                      >
-                        <Select.Trigger style={{ width: '100%' }} />
-                        <Select.Content>
-                          {(
-                            [
-                              'real_estate',
-                              'cash',
-                              'etf',
-                              'crypto',
-                            ] as AssetType[]
-                          ).map((t) => (
-                            <Select.Item key={t} value={t}>
-                              {ASSET_TYPE_LABELS[t]}
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select.Root>
-                    </div>
-                  </Flex>
-                  <div>
-                    <Text size="1" weight="medium" asChild>
-                      <span>Value</span>
-                    </Text>
-                    <TextField.Root
-                      type="number"
-                      value={loanForm.newAssetValue || ''}
-                      onChange={(e) =>
-                        setLoanForm((f) => ({
-                          ...f,
-                          newAssetValue: Number(e.target.value) || 0,
-                        }))
-                      }
-                      placeholder="0"
-                    />
-                  </div>
-                </Flex>
-              </Card>
-            )}
 
             <Flex gap="3">
               <div style={{ flex: 1 }}>
@@ -703,25 +570,6 @@ export default function LiabilitiesPage() {
               </div>
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Current Balance</span>
-                </Text>
-                <TextField.Root
-                  type="number"
-                  value={loanForm.currentBalance || ''}
-                  onChange={(e) => {
-                    const next = {
-                      ...loanForm,
-                      currentBalance: Number(e.target.value) || 0,
-                    };
-                    setLoanForm(autoCompute(next));
-                  }}
-                />
-              </div>
-            </Flex>
-
-            <Flex gap="3">
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
                   <span>Annual Rate (%)</span>
                 </Text>
                 <TextField.Root
@@ -732,26 +580,10 @@ export default function LiabilitiesPage() {
                       ? (loanForm.interestRate * 100).toFixed(1)
                       : ''
                   }
-                  onChange={(e) => {
-                    const next = {
-                      ...loanForm,
-                      interestRate: (Number(e.target.value) || 0) / 100,
-                    };
-                    setLoanForm(autoCompute(next));
-                  }}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Monthly Payment</span>
-                </Text>
-                <TextField.Root
-                  type="number"
-                  value={loanForm.monthlyPayment || ''}
                   onChange={(e) =>
                     setLoanForm((f) => ({
                       ...f,
-                      monthlyPayment: Number(e.target.value) || 0,
+                      interestRate: (Number(e.target.value) || 0) / 100,
                     }))
                   }
                 />
@@ -766,10 +598,9 @@ export default function LiabilitiesPage() {
                 <TextField.Root
                   type="date"
                   value={loanForm.startDate}
-                  onChange={(e) => {
-                    const next = { ...loanForm, startDate: e.target.value };
-                    setLoanForm(autoCompute(next));
-                  }}
+                  onChange={(e) =>
+                    setLoanForm((f) => ({ ...f, startDate: e.target.value }))
+                  }
                 />
               </div>
               <div style={{ flex: 1 }}>
@@ -779,13 +610,138 @@ export default function LiabilitiesPage() {
                 <TextField.Root
                   type="date"
                   value={loanForm.endDate}
-                  onChange={(e) => {
-                    const next = { ...loanForm, endDate: e.target.value };
-                    setLoanForm(autoCompute(next));
-                  }}
+                  onChange={(e) =>
+                    setLoanForm((f) => ({ ...f, endDate: e.target.value }))
+                  }
                 />
               </div>
             </Flex>
+
+            {computed && (
+              <Card variant="surface">
+                <Flex gap="5">
+                  <Flex direction="column">
+                    <Text size="1" color="gray">
+                      Monthly Payment
+                    </Text>
+                    <Text size="3" weight="bold">
+                      {formatMoney(computed.monthlyPayment, store.currency)}
+                    </Text>
+                  </Flex>
+                  <Flex direction="column">
+                    <Text size="1" color="gray">
+                      Current Balance
+                    </Text>
+                    <Text size="3" weight="bold">
+                      {formatMoney(computed.currentBalance, store.currency)}
+                    </Text>
+                  </Flex>
+                </Flex>
+              </Card>
+            )}
+
+            {!editingId ? (
+              <Card variant="surface">
+                <Flex direction="column" gap="2">
+                  <Text size="2" weight="bold">
+                    Asset
+                  </Text>
+                  <Select.Root
+                    value={loanForm.linkedAssetId || '_new'}
+                    onValueChange={(v) =>
+                      setLoanForm((f) => ({
+                        ...f,
+                        linkedAssetId: v === '_new' ? '' : v,
+                      }))
+                    }
+                  >
+                    <Select.Trigger style={{ width: '100%' }} />
+                    <Select.Content>
+                      <Select.Item value="_new">+ Create New Asset</Select.Item>
+                      {store.assets.map((a) => (
+                        <Select.Item key={a.id} value={a.id}>
+                          {a.name}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                  {!loanForm.linkedAssetId && (
+                    <Flex gap="3">
+                      <div style={{ flex: 2 }}>
+                        <Text size="1" weight="medium" asChild>
+                          <span>Name</span>
+                        </Text>
+                        <TextField.Root
+                          value={loanForm.assetName}
+                          onChange={(e) =>
+                            setLoanForm((f) => ({
+                              ...f,
+                              assetName: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g. My Apartment"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <Text size="1" weight="medium" asChild>
+                          <span>Type</span>
+                        </Text>
+                        <Select.Root
+                          value={loanForm.assetType}
+                          onValueChange={(v) =>
+                            setLoanForm((f) => ({
+                              ...f,
+                              assetType: v as AssetType,
+                            }))
+                          }
+                        >
+                          <Select.Trigger style={{ width: '100%' }} />
+                          <Select.Content>
+                            {ALL_ASSET_TYPES.map((t) => (
+                              <Select.Item key={t} value={t}>
+                                {ASSET_TYPE_LABELS[t]}
+                              </Select.Item>
+                            ))}
+                          </Select.Content>
+                        </Select.Root>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <Text size="1" weight="medium" asChild>
+                          <span>Value</span>
+                        </Text>
+                        <TextField.Root
+                          type="number"
+                          value={loanForm.assetValue || ''}
+                          onChange={(e) =>
+                            setLoanForm((f) => ({
+                              ...f,
+                              assetValue: Number(e.target.value) || 0,
+                            }))
+                          }
+                          placeholder={
+                            loanForm.originalAmount
+                              ? String(loanForm.originalAmount)
+                              : '0'
+                          }
+                        />
+                      </div>
+                    </Flex>
+                  )}
+                </Flex>
+              </Card>
+            ) : (
+              (() => {
+                const name = assetNameById(loanForm.linkedAssetId);
+                return name ? (
+                  <Flex gap="2" align="center">
+                    <Text size="2" color="gray">
+                      Linked to:
+                    </Text>
+                    <Badge size="1">{name}</Badge>
+                  </Flex>
+                ) : null;
+              })()
+            )}
           </Flex>
 
           <Flex gap="3" mt="4" justify="end">
@@ -794,7 +750,7 @@ export default function LiabilitiesPage() {
                 Cancel
               </Button>
             </Dialog.Close>
-            <Button onClick={handleSaveLoan}>
+            <Button onClick={handleSaveLoan} disabled={!computed}>
               {editingId ? 'Save' : 'Add'}
             </Button>
           </Flex>

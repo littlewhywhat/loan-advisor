@@ -23,20 +23,31 @@ import type {
   RealEstateUsage,
 } from '@/types/finance';
 
-const ASSET_TYPES: AssetType[] = ['cash', 'real_estate', 'etf', 'crypto'];
+const ASSET_TYPES: AssetType[] = [
+  'cash',
+  'real_estate',
+  'etf',
+  'crypto',
+  'other',
+];
 
 const TYPE_LABELS: Record<AssetType, string> = {
   cash: 'Cash',
   real_estate: 'Real Estate',
   etf: 'ETF',
   crypto: 'Crypto',
+  other: 'Other',
 };
 
-const TYPE_COLORS: Record<AssetType, 'green' | 'blue' | 'purple' | 'orange'> = {
+const TYPE_COLORS: Record<
+  AssetType,
+  'green' | 'blue' | 'purple' | 'orange' | 'gray'
+> = {
   cash: 'green',
   real_estate: 'blue',
   etf: 'purple',
   crypto: 'orange',
+  other: 'gray',
 };
 
 const USAGE_LABELS: Record<RealEstateUsage, string> = {

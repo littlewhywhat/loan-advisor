@@ -6,6 +6,7 @@ const FLAT_ID = 'seed-asset-flat';
 const ETF_ID = 'seed-asset-etf';
 const CASH_ID = 'seed-asset-cash';
 const CRYPTO_ID = 'seed-asset-crypto';
+const CAR_ID = 'seed-asset-car';
 const MORTGAGE_ID = 'seed-loan-mortgage';
 const PERSONAL_LOAN_ID = 'seed-loan-personal';
 const FLAT_TAX_ID = 'seed-recurring-flat-tax';
@@ -67,6 +68,19 @@ export const SEED_STORE: FinanceStore = {
       createdAt: ts,
       updatedAt: ts,
     },
+    {
+      id: CAR_ID,
+      name: 'Car',
+      type: 'other',
+      value: 300_000,
+      currency: 'CZK',
+      yearlyGrowthRate: -0.1,
+      usage: null,
+      rentSavings: null,
+      linkedIncomeIds: [],
+      createdAt: ts,
+      updatedAt: ts,
+    },
   ],
   liabilities: [
     {
@@ -95,7 +109,7 @@ export const SEED_STORE: FinanceStore = {
       monthlyPayment: 7_800,
       startDate: '2023-06-01',
       endDate: '2028-06-01',
-      linkedAssetId: null,
+      linkedAssetId: CAR_ID,
       createdAt: ts,
       updatedAt: ts,
     },
