@@ -6,8 +6,10 @@ const FLAT_ID = 'seed-asset-flat';
 const ETF_ID = 'seed-asset-etf';
 const CASH_ID = 'seed-asset-cash';
 const CRYPTO_ID = 'seed-asset-crypto';
+const CAR_ID = 'seed-asset-car';
 const MORTGAGE_ID = 'seed-loan-mortgage';
 const PERSONAL_LOAN_ID = 'seed-loan-personal';
+const FLAT_TAX_ID = 'seed-recurring-flat-tax';
 const RENT_INCOME_ID = 'seed-income-rent';
 const DIVIDEND_INCOME_ID = 'seed-income-dividends';
 
@@ -20,6 +22,9 @@ export const SEED_STORE: FinanceStore = {
       type: 'real_estate',
       value: 6_500_000,
       currency: 'CZK',
+      yearlyGrowthRate: 0.03,
+      usage: 'leasing',
+      rentSavings: null,
       linkedIncomeIds: [RENT_INCOME_ID],
       createdAt: ts,
       updatedAt: ts,
@@ -30,6 +35,9 @@ export const SEED_STORE: FinanceStore = {
       type: 'etf',
       value: 1_200_000,
       currency: 'CZK',
+      yearlyGrowthRate: 0.07,
+      usage: null,
+      rentSavings: null,
       linkedIncomeIds: [DIVIDEND_INCOME_ID],
       createdAt: ts,
       updatedAt: ts,
@@ -40,6 +48,9 @@ export const SEED_STORE: FinanceStore = {
       type: 'cash',
       value: 350_000,
       currency: 'CZK',
+      yearlyGrowthRate: 0.02,
+      usage: null,
+      rentSavings: null,
       linkedIncomeIds: [],
       createdAt: ts,
       updatedAt: ts,
@@ -50,6 +61,22 @@ export const SEED_STORE: FinanceStore = {
       type: 'crypto',
       value: 180_000,
       currency: 'CZK',
+      yearlyGrowthRate: 0.1,
+      usage: null,
+      rentSavings: null,
+      linkedIncomeIds: [],
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: CAR_ID,
+      name: 'Car',
+      type: 'other',
+      value: 300_000,
+      currency: 'CZK',
+      yearlyGrowthRate: -0.1,
+      usage: null,
+      rentSavings: null,
       linkedIncomeIds: [],
       createdAt: ts,
       updatedAt: ts,
@@ -82,7 +109,18 @@ export const SEED_STORE: FinanceStore = {
       monthlyPayment: 7_800,
       startDate: '2023-06-01',
       endDate: '2028-06-01',
-      linkedAssetId: null,
+      linkedAssetId: CAR_ID,
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: FLAT_TAX_ID,
+      type: 'recurring',
+      name: 'Apartment Property Tax',
+      amount: 1_200,
+      frequency: 'annually',
+      currency: 'CZK',
+      linkedAssetId: FLAT_ID,
       createdAt: ts,
       updatedAt: ts,
     },
@@ -195,6 +233,18 @@ export const SEED_STORE: FinanceStore = {
       isEssential: true,
       currency: 'CZK',
       linkedLiabilityId: PERSONAL_LOAN_ID,
+      createdAt: ts,
+      updatedAt: ts,
+    },
+    {
+      id: 'seed-expense-flat-tax',
+      name: 'Apartment Property Tax',
+      category: 'ownership',
+      amount: 1_200,
+      frequency: 'annually',
+      isEssential: true,
+      currency: 'CZK',
+      linkedLiabilityId: FLAT_TAX_ID,
       createdAt: ts,
       updatedAt: ts,
     },

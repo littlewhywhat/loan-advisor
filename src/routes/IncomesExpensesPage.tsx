@@ -39,10 +39,23 @@ const INCOME_TYPE_COLORS: Record<IncomeType, 'blue' | 'green' | 'purple'> = {
   dividends: 'purple',
 };
 
-const EXPENSE_CATEGORIES: ExpenseCategory[] = ['living_expense', 'liability'];
+const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  'living_expense',
+  'liability',
+  'ownership',
+];
 const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   living_expense: 'Living Expense',
   liability: 'Debt Service',
+  ownership: 'Ownership Cost',
+};
+const EXPENSE_CATEGORY_COLORS: Record<
+  ExpenseCategory,
+  'gray' | 'red' | 'orange'
+> = {
+  living_expense: 'gray',
+  liability: 'red',
+  ownership: 'orange',
 };
 
 const FREQUENCIES: Frequency[] = ['monthly', 'quarterly', 'annually'];
@@ -552,7 +565,7 @@ function ExpenseSection() {
                     {expense.name}
                   </Text>
                   <Badge
-                    color={expense.category === 'liability' ? 'red' : 'gray'}
+                    color={EXPENSE_CATEGORY_COLORS[expense.category]}
                     size="1"
                   >
                     {EXPENSE_CATEGORY_LABELS[expense.category]}
@@ -585,6 +598,11 @@ function ExpenseSection() {
                       {linked}
                     </Badge>
                   )}
+                  {expense.linkedLiabilityId && (
+                    <Badge size="1" variant="soft" color="blue">
+                      Auto-managed
+                    </Badge>
+                  )}
                 </Flex>
               </Flex>
               <Flex gap="2">
@@ -595,14 +613,16 @@ function ExpenseSection() {
                 >
                   <Pencil size={14} />
                 </Button>
-                <Button
-                  size="1"
-                  variant="ghost"
-                  color="red"
-                  onClick={() => setDeleteTarget(expense)}
-                >
-                  <Trash2 size={14} />
-                </Button>
+                {!expense.linkedLiabilityId && (
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="red"
+                    onClick={() => setDeleteTarget(expense)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                )}
               </Flex>
             </Flex>
           </Card>

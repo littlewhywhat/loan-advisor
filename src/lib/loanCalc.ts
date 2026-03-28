@@ -1,3 +1,5 @@
+import type { Loan } from '@/types/finance';
+
 export function monthlyPayment(
   principal: number,
   annualRate: number,
@@ -7,6 +9,73 @@ export function monthlyPayment(
   const r = annualRate / 12;
   if (r === 0) return principal / n;
   return (principal * r * (1 + r) ** n) / ((1 + r) ** n - 1);
+}
+
+export function monthlyPaymentFromMonths(
+  principal: number,
+  annualRate: number,
+  totalMonths: number,
+): number {
+  if (totalMonths <= 0 || principal <= 0) return 0;
+  const r = annualRate / 12;
+  if (r === 0) return principal / totalMonths;
+  return (
+    (principal * r * (1 + r) ** totalMonths) / ((1 + r) ** totalMonths - 1)
+  );
+}
+
+export function monthsBetween(startDate: string, endDate: string): number {
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  return (
+    (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth())
+  );
+}
+
+export function elapsedMonths(startDate: string): number {
+  const s = new Date(startDate);
+  const n = new Date();
+  const months =
+    (n.getFullYear() - s.getFullYear()) * 12 + (n.getMonth() - s.getMonth());
+  return Math.max(0, months);
+}
+
+export function remainingBalance(
+  principal: number,
+  annualRate: number,
+  payment: number,
+  elapsedN: number,
+): number {
+  if (elapsedN <= 0) return principal;
+  if (principal <= 0) return 0;
+  const r = annualRate / 12;
+  if (r === 0) return Math.max(0, principal - payment * elapsedN);
+  const balance =
+    principal * (1 + r) ** elapsedN - (payment * ((1 + r) ** elapsedN - 1)) / r;
+  return Math.max(0, Math.round(balance));
+}
+
+export function computeLoanDerived(
+  originalAmount: number,
+  annualRate: number,
+  startDate: string,
+  endDate: string,
+): { monthlyPayment: number; currentBalance: number } {
+  const total = monthsBetween(startDate, endDate);
+  const mp = monthlyPaymentFromMonths(originalAmount, annualRate, total);
+  const elapsed = elapsedMonths(startDate);
+  const cb = remainingBalance(originalAmount, annualRate, mp, elapsed);
+  return { monthlyPayment: Math.round(mp), currentBalance: cb };
+}
+
+export function liveBalance(loan: Loan): number {
+  const elapsed = elapsedMonths(loan.startDate);
+  return remainingBalance(
+    loan.originalAmount,
+    loan.interestRate,
+    loan.monthlyPayment,
+    elapsed,
+  );
 }
 
 const TERM_MONTHS: Record<string, number> = {
