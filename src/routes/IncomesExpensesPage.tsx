@@ -8,12 +8,11 @@ import {
   Flex,
   Heading,
   Select,
-  Separator,
   Text,
   TextField,
 } from '@radix-ui/themes';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useFinance } from '@/context/FinanceProvider';
 import { formatMoney, toMonthly } from '@/lib/format';
 import type {
@@ -201,6 +200,99 @@ function IncomeSection() {
   const assetName = (id: string | null) =>
     id ? (store.assets.find((a) => a.id === id)?.name ?? null) : null;
 
+  const { activeIncomes, upcomingIncomes } = useMemo(() => {
+    const futureAssetDates = new Map<string, string>();
+    for (const l of store.liabilities) {
+      if (l.type === 'loan' && new Date(l.startDate) > new Date()) {
+        futureAssetDates.set(l.linkedAssetId, l.startDate);
+      }
+    }
+    const active: Income[] = [];
+    const upcoming: { income: Income; startDate: string }[] = [];
+    for (const i of store.incomes) {
+      const startDate = i.linkedAssetId
+        ? futureAssetDates.get(i.linkedAssetId)
+        : undefined;
+      if (startDate) {
+        upcoming.push({ income: i, startDate });
+      } else {
+        active.push(i);
+      }
+    }
+    return { activeIncomes: active, upcomingIncomes: upcoming };
+  }, [store.incomes, store.liabilities, store.assets]);
+
+  const renderIncomeCard = (income: Income, futureStartDate: string | null) => {
+    const linked = assetName(income.linkedAssetId);
+    const isFuture = futureStartDate !== null;
+    return (
+      <Card key={income.id} style={isFuture ? { opacity: 0.75 } : undefined}>
+        <Flex justify="between" align="center">
+          <Flex direction="column" gap="1">
+            <Flex align="center" gap="2">
+              <Text size="3" weight="bold">
+                {income.name}
+              </Text>
+              <Badge color={INCOME_TYPE_COLORS[income.type]} size="1">
+                {INCOME_TYPE_LABELS[income.type]}
+              </Badge>
+              {income.isPassive && (
+                <Badge size="1" variant="soft" color="green">
+                  Passive
+                </Badge>
+              )}
+              {isFuture && (
+                <Badge size="1" variant="soft" color="blue">
+                  Starts {futureStartDate}
+                </Badge>
+              )}
+            </Flex>
+            <Flex gap="3" align="center">
+              <Text size="2" weight="bold">
+                {formatMoney(income.amount, income.currency as Currency)}/
+                {income.frequency === 'monthly'
+                  ? 'mo'
+                  : income.frequency === 'quarterly'
+                    ? 'qtr'
+                    : 'yr'}
+              </Text>
+              <Text size="1" color="gray">
+                (
+                {formatMoney(
+                  toMonthly(income.amount, income.frequency),
+                  income.currency as Currency,
+                )}
+                /mo)
+              </Text>
+              {linked && (
+                <Badge size="1" variant="outline">
+                  {linked}
+                </Badge>
+              )}
+            </Flex>
+          </Flex>
+          <Flex gap="2">
+            <Button
+              size="1"
+              variant="ghost"
+              onClick={() => openEdit(income)}
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              size="1"
+              variant="ghost"
+              color="red"
+              onClick={() => setDeleteTarget(income)}
+            >
+              <Trash2 size={14} />
+            </Button>
+          </Flex>
+        </Flex>
+      </Card>
+    );
+  };
+
   return (
     <>
       <Flex justify="between" align="center">
@@ -219,70 +311,18 @@ function IncomeSection() {
         </Card>
       )}
 
-      {store.incomes.map((income) => {
-        const linked = assetName(income.linkedAssetId);
-        return (
-          <Card key={income.id}>
-            <Flex justify="between" align="center">
-              <Flex direction="column" gap="1">
-                <Flex align="center" gap="2">
-                  <Text size="3" weight="bold">
-                    {income.name}
-                  </Text>
-                  <Badge color={INCOME_TYPE_COLORS[income.type]} size="1">
-                    {INCOME_TYPE_LABELS[income.type]}
-                  </Badge>
-                  {income.isPassive && (
-                    <Badge size="1" variant="soft" color="green">
-                      Passive
-                    </Badge>
-                  )}
-                </Flex>
-                <Flex gap="3" align="center">
-                  <Text size="2" weight="bold">
-                    {formatMoney(income.amount, income.currency as Currency)}/
-                    {income.frequency === 'monthly'
-                      ? 'mo'
-                      : income.frequency === 'quarterly'
-                        ? 'qtr'
-                        : 'yr'}
-                  </Text>
-                  <Text size="1" color="gray">
-                    (
-                    {formatMoney(
-                      toMonthly(income.amount, income.frequency),
-                      income.currency as Currency,
-                    )}
-                    /mo)
-                  </Text>
-                  {linked && (
-                    <Badge size="1" variant="outline">
-                      {linked}
-                    </Badge>
-                  )}
-                </Flex>
-              </Flex>
-              <Flex gap="2">
-                <Button
-                  size="1"
-                  variant="ghost"
-                  onClick={() => openEdit(income)}
-                >
-                  <Pencil size={14} />
-                </Button>
-                <Button
-                  size="1"
-                  variant="ghost"
-                  color="red"
-                  onClick={() => setDeleteTarget(income)}
-                >
-                  <Trash2 size={14} />
-                </Button>
-              </Flex>
-            </Flex>
-          </Card>
-        );
-      })}
+      {activeIncomes.map((income) => renderIncomeCard(income, null))}
+
+      {upcomingIncomes.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="2" weight="bold" color="gray">
+            Upcoming Income
+          </Text>
+          {upcomingIncomes.map(({ income, startDate }) =>
+            renderIncomeCard(income, startDate),
+          )}
+        </Flex>
+      )}
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="500px">
@@ -536,6 +576,115 @@ function ExpenseSection() {
   const liabilityName = (id: string | null) =>
     id ? (store.liabilities.find((l) => l.id === id)?.name ?? null) : null;
 
+  const { activeExpenses, upcomingExpenses } = useMemo(() => {
+    const futureLiabilityDates = new Map<string, string>();
+    for (const l of store.liabilities) {
+      if (l.type === 'loan' && new Date(l.startDate) > new Date()) {
+        futureLiabilityDates.set(l.id, l.startDate);
+      }
+    }
+    const active: Expense[] = [];
+    const upcoming: { expense: Expense; startDate: string }[] = [];
+    for (const e of store.expenses) {
+      const startDate = e.linkedLiabilityId
+        ? futureLiabilityDates.get(e.linkedLiabilityId)
+        : undefined;
+      if (startDate) {
+        upcoming.push({ expense: e, startDate });
+      } else {
+        active.push(e);
+      }
+    }
+    return { activeExpenses: active, upcomingExpenses: upcoming };
+  }, [store.expenses, store.liabilities]);
+
+  const renderExpenseCard = (
+    expense: Expense,
+    futureStartDate: string | null,
+  ) => {
+    const linked = liabilityName(expense.linkedLiabilityId);
+    const isFuture = futureStartDate !== null;
+    return (
+      <Card
+        key={expense.id}
+        style={isFuture ? { opacity: 0.75 } : undefined}
+      >
+        <Flex justify="between" align="center">
+          <Flex direction="column" gap="1">
+            <Flex align="center" gap="2">
+              <Text size="3" weight="bold">
+                {expense.name}
+              </Text>
+              <Badge
+                color={EXPENSE_CATEGORY_COLORS[expense.category]}
+                size="1"
+              >
+                {EXPENSE_CATEGORY_LABELS[expense.category]}
+              </Badge>
+              {expense.isEssential && (
+                <Badge size="1" variant="soft" color="orange">
+                  Essential
+                </Badge>
+              )}
+              {isFuture && (
+                <Badge size="1" variant="soft" color="blue">
+                  Starts {futureStartDate}
+                </Badge>
+              )}
+            </Flex>
+            <Flex gap="3" align="center">
+              <Text size="2" weight="bold">
+                {formatMoney(expense.amount, expense.currency as Currency)}/
+                {expense.frequency === 'monthly'
+                  ? 'mo'
+                  : expense.frequency === 'quarterly'
+                    ? 'qtr'
+                    : 'yr'}
+              </Text>
+              <Text size="1" color="gray">
+                (
+                {formatMoney(
+                  toMonthly(expense.amount, expense.frequency),
+                  expense.currency as Currency,
+                )}
+                /mo)
+              </Text>
+              {linked && (
+                <Badge size="1" variant="outline">
+                  {linked}
+                </Badge>
+              )}
+              {expense.linkedLiabilityId && (
+                <Badge size="1" variant="soft" color="blue">
+                  Auto-managed
+                </Badge>
+              )}
+            </Flex>
+          </Flex>
+          <Flex gap="2">
+            <Button
+              size="1"
+              variant="ghost"
+              onClick={() => openEdit(expense)}
+            >
+              <Pencil size={14} />
+            </Button>
+            {!expense.linkedLiabilityId && (
+              <Button
+                size="1"
+                variant="ghost"
+                color="red"
+                onClick={() => setDeleteTarget(expense)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            )}
+          </Flex>
+        </Flex>
+      </Card>
+    );
+  };
+
   return (
     <>
       <Flex justify="between" align="center">
@@ -554,80 +703,18 @@ function ExpenseSection() {
         </Card>
       )}
 
-      {store.expenses.map((expense) => {
-        const linked = liabilityName(expense.linkedLiabilityId);
-        return (
-          <Card key={expense.id}>
-            <Flex justify="between" align="center">
-              <Flex direction="column" gap="1">
-                <Flex align="center" gap="2">
-                  <Text size="3" weight="bold">
-                    {expense.name}
-                  </Text>
-                  <Badge
-                    color={EXPENSE_CATEGORY_COLORS[expense.category]}
-                    size="1"
-                  >
-                    {EXPENSE_CATEGORY_LABELS[expense.category]}
-                  </Badge>
-                  {expense.isEssential && (
-                    <Badge size="1" variant="soft" color="orange">
-                      Essential
-                    </Badge>
-                  )}
-                </Flex>
-                <Flex gap="3" align="center">
-                  <Text size="2" weight="bold">
-                    {formatMoney(expense.amount, expense.currency as Currency)}/
-                    {expense.frequency === 'monthly'
-                      ? 'mo'
-                      : expense.frequency === 'quarterly'
-                        ? 'qtr'
-                        : 'yr'}
-                  </Text>
-                  <Text size="1" color="gray">
-                    (
-                    {formatMoney(
-                      toMonthly(expense.amount, expense.frequency),
-                      expense.currency as Currency,
-                    )}
-                    /mo)
-                  </Text>
-                  {linked && (
-                    <Badge size="1" variant="outline">
-                      {linked}
-                    </Badge>
-                  )}
-                  {expense.linkedLiabilityId && (
-                    <Badge size="1" variant="soft" color="blue">
-                      Auto-managed
-                    </Badge>
-                  )}
-                </Flex>
-              </Flex>
-              <Flex gap="2">
-                <Button
-                  size="1"
-                  variant="ghost"
-                  onClick={() => openEdit(expense)}
-                >
-                  <Pencil size={14} />
-                </Button>
-                {!expense.linkedLiabilityId && (
-                  <Button
-                    size="1"
-                    variant="ghost"
-                    color="red"
-                    onClick={() => setDeleteTarget(expense)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                )}
-              </Flex>
-            </Flex>
-          </Card>
-        );
-      })}
+      {activeExpenses.map((expense) => renderExpenseCard(expense, null))}
+
+      {upcomingExpenses.length > 0 && (
+        <Flex direction="column" gap="3">
+          <Text size="2" weight="bold" color="gray">
+            Upcoming Expenses
+          </Text>
+          {upcomingExpenses.map(({ expense, startDate }) =>
+            renderExpenseCard(expense, startDate),
+          )}
+        </Flex>
+      )}
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="500px">
@@ -814,7 +901,6 @@ export default function IncomesExpensesPage() {
     <Flex direction="column" gap="5" style={{ maxWidth: 720 }}>
       <Heading size="7">Income & Expenses</Heading>
       <IncomeSection />
-      <Separator size="4" />
       <ExpenseSection />
     </Flex>
   );
