@@ -1,5 +1,4 @@
 import { Badge, Card, Flex, Heading, Separator, Text } from '@radix-ui/themes';
-import { Info } from 'lucide-react';
 import { useMemo } from 'react';
 import { useFinance } from '@/context/FinanceProvider';
 import { formatMoney, toMonthly } from '@/lib/format';

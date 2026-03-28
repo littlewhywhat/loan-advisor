@@ -220,7 +220,7 @@ function IncomeSection() {
       }
     }
     return { activeIncomes: active, upcomingIncomes: upcoming };
-  }, [store.incomes, store.liabilities, store.assets]);
+  }, [store.incomes, store.liabilities]);
 
   const renderIncomeCard = (income: Income, futureStartDate: string | null) => {
     const linked = assetName(income.linkedAssetId);
