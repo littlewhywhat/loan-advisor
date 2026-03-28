@@ -225,6 +225,7 @@ function IncomeSection() {
   const renderIncomeCard = (income: Income, futureStartDate: string | null) => {
     const linked = assetName(income.linkedAssetId);
     const isFuture = futureStartDate !== null;
+    const isAutoManaged = !!income.linkedAssetId;
     return (
       <Card key={income.id} style={isFuture ? { opacity: 0.75 } : undefined}>
         <Flex justify="between" align="center">
@@ -269,25 +270,32 @@ function IncomeSection() {
                   {linked}
                 </Badge>
               )}
+              {isAutoManaged && (
+                <Badge size="1" variant="soft" color="blue">
+                  Auto-managed
+                </Badge>
+              )}
             </Flex>
           </Flex>
-          <Flex gap="2">
-            <Button
-              size="1"
-              variant="ghost"
-              onClick={() => openEdit(income)}
-            >
-              <Pencil size={14} />
-            </Button>
-            <Button
-              size="1"
-              variant="ghost"
-              color="red"
-              onClick={() => setDeleteTarget(income)}
-            >
-              <Trash2 size={14} />
-            </Button>
-          </Flex>
+          {!isAutoManaged && (
+            <Flex gap="2">
+              <Button
+                size="1"
+                variant="ghost"
+                onClick={() => openEdit(income)}
+              >
+                <Pencil size={14} />
+              </Button>
+              <Button
+                size="1"
+                variant="ghost"
+                color="red"
+                onClick={() => setDeleteTarget(income)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            </Flex>
+          )}
         </Flex>
       </Card>
     );
@@ -661,15 +669,15 @@ function ExpenseSection() {
               )}
             </Flex>
           </Flex>
-          <Flex gap="2">
-            <Button
-              size="1"
-              variant="ghost"
-              onClick={() => openEdit(expense)}
-            >
-              <Pencil size={14} />
-            </Button>
-            {!expense.linkedLiabilityId && (
+          {!expense.linkedLiabilityId && (
+            <Flex gap="2">
+              <Button
+                size="1"
+                variant="ghost"
+                onClick={() => openEdit(expense)}
+              >
+                <Pencil size={14} />
+              </Button>
               <Button
                 size="1"
                 variant="ghost"
@@ -678,8 +686,8 @@ function ExpenseSection() {
               >
                 <Trash2 size={14} />
               </Button>
-            )}
-          </Flex>
+            </Flex>
+          )}
         </Flex>
       </Card>
     );
