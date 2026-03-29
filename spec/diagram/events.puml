@@ -36,6 +36,11 @@ entity RepayLoan {
   * liabilityId : uuid <<FK>>
   * repaymentAmount : MoneyAmount
   * strategy : reduce_payment | reduce_term
+  --
+  * newPrincipal : MoneyAmount
+  * newStartDate : date
+  * newEndDate : date
+  * newMonthlyPayment : MoneyAmount
 }
 
 Event <|-- TakeMortgage
