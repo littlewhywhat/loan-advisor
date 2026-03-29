@@ -15,7 +15,8 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useEvents } from '@/context/EventProvider';
 import { findOwnerEvent, isEventEditable, todayStr } from '@/lib/eventUtils';
-import { fmtMoney, formatPct } from '@/lib/format';
+import { fmtMoney, formatMoney, formatPct } from '@/lib/format';
+import { computeLoanDerived } from '@/lib/loanCalc';
 import type {
   Currency,
   FinanceEvent,
@@ -366,6 +367,14 @@ export default function LiabilitiesPage() {
       {derived.liabilities.map((liability) => {
         const owner = findOwnerEvent(events, liability.id);
         const editable = owner && isEventEditable(owner);
+        const loanDerived = computeLoanDerived(
+          liability.value.amount,
+          liability.interestRate,
+          liability.startDate,
+          liability.endDate,
+        );
+        const paidPrincipal =
+          liability.value.amount - loanDerived.currentBalance;
         return (
           <Card key={liability.id}>
             <Flex direction="column" gap="2">
@@ -415,12 +424,35 @@ export default function LiabilitiesPage() {
               <Flex gap="5" wrap="wrap">
                 <Flex direction="column">
                   <Text size="1" color="gray">
-                    Value
+                    Original
                   </Text>
                   <Text size="2" weight="bold">
                     {fmtMoney(liability.value)}
                   </Text>
                 </Flex>
+                {paidPrincipal > 0 && (
+                  <>
+                    <Flex direction="column">
+                      <Text size="1" color="gray">
+                        Balance
+                      </Text>
+                      <Text size="2" weight="bold">
+                        {formatMoney(
+                          loanDerived.currentBalance,
+                          liability.value.currency,
+                        )}
+                      </Text>
+                    </Flex>
+                    <Flex direction="column">
+                      <Text size="1" color="gray">
+                        Paid Principal
+                      </Text>
+                      <Text size="2" weight="bold" color="green">
+                        {formatMoney(paidPrincipal, liability.value.currency)}
+                      </Text>
+                    </Flex>
+                  </>
+                )}
                 <Flex direction="column">
                   <Text size="1" color="gray">
                     Rate
@@ -429,16 +461,17 @@ export default function LiabilitiesPage() {
                     {formatPct(liability.interestRate)}
                   </Text>
                 </Flex>
-                {liability.kind === 'mortgage' && (
-                  <Flex direction="column">
-                    <Text size="1" color="gray">
-                      Down Payment
-                    </Text>
-                    <Text size="2" weight="bold">
-                      {fmtMoney(liability.downPayment)}
-                    </Text>
-                  </Flex>
-                )}
+                {liability.kind === 'mortgage' &&
+                  liability.downPayment.amount > 0 && (
+                    <Flex direction="column">
+                      <Text size="1" color="gray">
+                        Down Payment
+                      </Text>
+                      <Text size="2" weight="bold">
+                        {fmtMoney(liability.downPayment)}
+                      </Text>
+                    </Flex>
+                  )}
                 <Flex direction="column">
                   <Text size="1" color="gray">
                     Start

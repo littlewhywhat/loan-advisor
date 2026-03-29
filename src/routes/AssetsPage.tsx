@@ -50,7 +50,7 @@ function assetToForm(a: Asset): AssetForm {
     kind: a.kind,
     value: a.value.amount,
     currency: a.value.currency,
-    growthRate: a.growthRate,
+    growthRate: a.growthRate * 100,
   };
 }
 
@@ -80,7 +80,7 @@ export default function AssetsPage() {
       name: form.name,
       kind: form.kind,
       value: { amount: form.value, currency: form.currency },
-      growthRate: form.growthRate,
+      growthRate: form.growthRate / 100,
     } as Asset;
 
     if (editingId) {
@@ -328,6 +328,7 @@ export default function AssetsPage() {
               </Text>
               <TextField.Root
                 type="number"
+                step="0.1"
                 value={form.growthRate || ''}
                 onChange={(e) =>
                   setForm((f) => ({
