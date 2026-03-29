@@ -43,6 +43,10 @@ entity RepayLoan {
   * newMonthlyPayment : MoneyAmount
 }
 
+entity BuyAsset {
+  * allocations : CashAllocation[]
+}
+
 Event <|-- TakeMortgage
 Event <|-- TakePersonalLoan
 Event <|-- AddAsset
@@ -50,6 +54,7 @@ Event <|-- AddIncome
 Event <|-- AddExpense
 Event <|-- ManualCorrection
 Event <|-- RepayLoan
+Event <|-- BuyAsset
 
 TakeMortgage "1" *-- "1" Mortgage
 TakeMortgage "1" *-- "1" Flat
@@ -66,5 +71,8 @@ AddIncome "1" *-- "1" Income
 AddExpense "1" *-- "1" Expense
 
 RepayLoan "1" --> "1" Liability : targets
+
+BuyAsset "1" *-- "1" Asset
+BuyAsset "1" *-- "1..*" CashAllocation
 
 @enduml
