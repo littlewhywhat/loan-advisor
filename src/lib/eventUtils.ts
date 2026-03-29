@@ -57,6 +57,26 @@ export function isStandaloneExpense(
   return owner?.type === 'add_expense';
 }
 
+export function ownedEntityNames(event: FinanceEvent): string[] {
+  switch (event.type) {
+    case 'take_mortgage': {
+      const names = [event.mortgage.name, event.flat.name, event.expense.name];
+      if (event.rental) names.push(event.income.name);
+      return names;
+    }
+    case 'take_personal_loan':
+      return [event.loan.name, event.cash.name, event.expense.name];
+    case 'add_asset':
+      return [event.asset.name];
+    case 'add_income':
+      return [event.income.name];
+    case 'add_expense':
+      return [event.expense.name];
+    case 'manual_correction':
+      return [];
+  }
+}
+
 export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }

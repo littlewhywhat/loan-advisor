@@ -19,6 +19,7 @@ import {
   isEventEditable,
   isStandaloneExpense,
   isStandaloneIncome,
+  ownedEntityNames,
   todayStr,
 } from '@/lib/eventUtils';
 import { fmtMoney, toMonthly } from '@/lib/format';
@@ -92,6 +93,7 @@ function IncomeSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<IncomeForm>(emptyIncomeForm);
   const [archiveTarget, setArchiveTarget] = useState<Income | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Income | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Income | null>(null);
 
   const openAdd = () => {
@@ -144,10 +146,16 @@ function IncomeSection() {
     setArchiveTarget(null);
   };
 
-  const handleRestore = (income: Income) => {
-    const owner = findOwnerEvent(events, income.id);
+  const handleRestore = () => {
+    if (!restoreTarget) return;
+    const owner = findOwnerEvent(events, restoreTarget.id);
     if (owner) restoreEvent(owner.id);
+    setRestoreTarget(null);
   };
+
+  const restoreOwner = restoreTarget
+    ? findOwnerEvent(events, restoreTarget.id)
+    : undefined;
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -265,7 +273,7 @@ function IncomeSection() {
                   <Button
                     size="1"
                     variant="ghost"
-                    onClick={() => handleRestore(income)}
+                    onClick={() => setRestoreTarget(income)}
                   >
                     <RotateCcw size={14} />
                   </Button>
@@ -400,6 +408,31 @@ function IncomeSection() {
       </AlertDialog.Root>
 
       <AlertDialog.Root
+        open={!!restoreTarget}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Restore Event</AlertDialog.Title>
+          <AlertDialog.Description>
+            This will restore:{' '}
+            <strong>
+              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
+            </strong>
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button onClick={handleRestore}>Restore</Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
@@ -442,6 +475,7 @@ function ExpenseSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ExpenseForm>(emptyExpenseForm);
   const [archiveTarget, setArchiveTarget] = useState<Expense | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Expense | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
 
   const openAdd = () => {
@@ -494,10 +528,16 @@ function ExpenseSection() {
     setArchiveTarget(null);
   };
 
-  const handleRestore = (expense: Expense) => {
-    const owner = findOwnerEvent(events, expense.id);
+  const handleRestore = () => {
+    if (!restoreTarget) return;
+    const owner = findOwnerEvent(events, restoreTarget.id);
     if (owner) restoreEvent(owner.id);
+    setRestoreTarget(null);
   };
+
+  const restoreOwner = restoreTarget
+    ? findOwnerEvent(events, restoreTarget.id)
+    : undefined;
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -615,7 +655,7 @@ function ExpenseSection() {
                   <Button
                     size="1"
                     variant="ghost"
-                    onClick={() => handleRestore(expense)}
+                    onClick={() => setRestoreTarget(expense)}
                   >
                     <RotateCcw size={14} />
                   </Button>
@@ -744,6 +784,31 @@ function ExpenseSection() {
               <Button color="red" onClick={handleArchive}>
                 Archive
               </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
+        open={!!restoreTarget}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Restore Event</AlertDialog.Title>
+          <AlertDialog.Description>
+            This will restore:{' '}
+            <strong>
+              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
+            </strong>
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button onClick={handleRestore}>Restore</Button>
             </AlertDialog.Action>
           </Flex>
         </AlertDialog.Content>

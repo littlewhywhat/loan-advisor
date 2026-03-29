@@ -17,6 +17,7 @@ import {
   findOwnerEvent,
   isEventEditable,
   isStandaloneAsset,
+  ownedEntityNames,
   todayStr,
 } from '@/lib/eventUtils';
 import { fmtMoney, formatPct } from '@/lib/format';
@@ -69,6 +70,7 @@ export default function AssetsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AssetForm>(emptyAssetForm);
   const [archiveTarget, setArchiveTarget] = useState<Asset | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Asset | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
 
   const openAdd = () => {
@@ -122,10 +124,16 @@ export default function AssetsPage() {
     setArchiveTarget(null);
   };
 
-  const handleRestore = (asset: Asset) => {
-    const owner = findOwnerEvent(events, asset.id);
+  const handleRestore = () => {
+    if (!restoreTarget) return;
+    const owner = findOwnerEvent(events, restoreTarget.id);
     if (owner) restoreEvent(owner.id);
+    setRestoreTarget(null);
   };
+
+  const restoreOwner = restoreTarget
+    ? findOwnerEvent(events, restoreTarget.id)
+    : undefined;
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -294,7 +302,7 @@ export default function AssetsPage() {
                   <Button
                     size="1"
                     variant="ghost"
-                    onClick={() => handleRestore(asset)}
+                    onClick={() => setRestoreTarget(asset)}
                   >
                     <RotateCcw size={14} />
                   </Button>
@@ -436,6 +444,31 @@ export default function AssetsPage() {
               <Button color="red" onClick={handleArchive}>
                 Archive
               </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
+        open={!!restoreTarget}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Restore Event</AlertDialog.Title>
+          <AlertDialog.Description>
+            This will restore:{' '}
+            <strong>
+              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
+            </strong>
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button onClick={handleRestore}>Restore</Button>
             </AlertDialog.Action>
           </Flex>
         </AlertDialog.Content>
