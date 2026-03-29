@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveState } from './deriveState';
+import { deriveState } from '@/lib/deriveState';
 import type {
   AddExpenseEvent,
   AddIncomeEvent,
