@@ -769,12 +769,12 @@ function BuyAssetFields({
                 <div>
                   <Text size="2" weight="medium" mb="1" asChild><span>Remove Expense</span></Text>
                   <Select.Root
-                    value={form.removeExpenseId}
-                    onValueChange={(v) => onChange({ ...form, removeExpenseId: v })}
+                    value={form.removeExpenseId || '__none__'}
+                    onValueChange={(v) => onChange({ ...form, removeExpenseId: v === '__none__' ? '' : v })}
                   >
-                    <Select.Trigger style={{ width: '100%' }} placeholder="None" />
+                    <Select.Trigger style={{ width: '100%' }} />
                     <Select.Content>
-                      <Select.Item value="">None</Select.Item>
+                      <Select.Item value="__none__">None</Select.Item>
                       {expenses.map((exp) => (
                         <Select.Item key={exp.id} value={exp.id}>
                           {exp.name} ({fmtMoney(exp.amount)}/{exp.frequency})
