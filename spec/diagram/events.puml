@@ -1,0 +1,50 @@
+@startuml finance-events
+
+enum EventStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+entity Event {
+  * id : uuid <<PK>>
+  --
+  * date : date
+  * status : EventStatus
+}
+
+entity TakeMortgage {
+  * rental : boolean
+}
+
+entity TakePersonalLoan {
+}
+
+entity AddIncome {
+}
+
+entity AddExpense {
+}
+
+entity ManualCorrection {
+  * changes : jsonb
+}
+
+Event <|-- TakeMortgage
+Event <|-- TakePersonalLoan
+Event <|-- AddIncome
+Event <|-- AddExpense
+Event <|-- ManualCorrection
+
+TakeMortgage "1" *-- "1" Mortgage
+TakeMortgage "1" *-- "1" Flat
+TakeMortgage "1" *-- "1" Expense
+TakeMortgage "0..1" *-- "1" Income : if rental
+
+TakePersonalLoan "1" *-- "1" Loan
+TakePersonalLoan "1" *-- "1" Cash
+TakePersonalLoan "1" *-- "1" Expense
+
+AddIncome "1" *-- "1" Income
+AddExpense "1" *-- "1" Expense
+
+@enduml
