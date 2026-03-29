@@ -78,6 +78,11 @@ export type BuyAssetFormData = {
   currency: Currency;
   growthRate: number;
   allocations: BuyAssetFormAllocation[];
+  forLiving: boolean;
+  removeExpenseId: string;
+  newExpenseName: string;
+  newExpenseAmount: number;
+  newExpenseFrequency: Frequency;
 };
 
 function uid(): string {
@@ -277,7 +282,7 @@ export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEve
       amount: { amount: a.amount, currency },
     }));
 
-  return {
+  const result: NewEventInput = {
     type: 'buy_asset',
     date,
     asset: {
@@ -289,6 +294,23 @@ export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEve
     } as Asset,
     allocations,
   };
+
+  if (form.forLiving) {
+    if (form.removeExpenseId) {
+      result.removeExpenseId = form.removeExpenseId;
+    }
+    result.forLiving = true;
+    if (form.newExpenseName.trim() && form.newExpenseAmount > 0) {
+      result.newExpense = {
+        id: uid(),
+        name: form.newExpenseName,
+        amount: { amount: form.newExpenseAmount, currency },
+        frequency: form.newExpenseFrequency,
+      };
+    }
+  }
+
+  return result;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -422,6 +444,11 @@ export function emptyBuyAssetForm(): BuyAssetFormData {
     currency: 'CZK',
     growthRate: 3.0,
     allocations: [],
+    forLiving: false,
+    removeExpenseId: '',
+    newExpenseName: '',
+    newExpenseAmount: 0,
+    newExpenseFrequency: 'monthly',
   };
 }
 

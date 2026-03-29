@@ -104,6 +104,9 @@ export type BuyAssetEvent = EventBase & {
   type: 'buy_asset';
   asset: Asset;
   allocations: CashAllocation[];
+  forLiving?: boolean;
+  removeExpenseId?: string;
+  newExpense?: Expense;
 };
 
 export type RepayLoanStrategy = 'reduce_payment' | 'reduce_term';

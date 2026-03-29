@@ -36,3 +36,28 @@ Feature: Buy Asset
     Then a BuyAsset event is created with status ACTIVE
     And a Flat asset "Studio" is created with value 5000000 CZK
     And "Loan Cash" value is reduced to 0 CZK
+
+  Scenario: Buy flat for living with expense swap
+    Given the user has an active Cash asset "Loan Cash" with value 4000000 CZK
+    And the user has an active Expense "Rent" of 15000 CZK/monthly
+    When the user creates a BuyAsset event with:
+      | field             | value        |
+      | name              | My Flat      |
+      | kind              | flat         |
+      | value             | 4000000      |
+      | currency          | CZK          |
+      | growth_rate       | 3.0          |
+      | date              | 2026-04-01   |
+      | for_living        | true         |
+      | remove_expense    | Rent         |
+      | new_expense_name  | Building Fees|
+      | new_expense_amount| 5000         |
+      | new_expense_freq  | monthly      |
+    And allocations:
+      | cash_asset  | amount   |
+      | Loan Cash   | 4000000  |
+    Then a BuyAsset event is created with status ACTIVE
+    And a Flat asset "My Flat" is created with value 4000000 CZK
+    And "Loan Cash" value is reduced to 0 CZK
+    And the Expense "Rent" is removed
+    And a new Expense "Building Fees" is created with amount 5000 CZK/monthly

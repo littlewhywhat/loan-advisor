@@ -45,6 +45,8 @@ entity RepayLoan {
 
 entity BuyAsset {
   * allocations : CashAllocation[]
+  forLiving : boolean
+  removeExpenseId : uuid <<FK>>
 }
 
 Event <|-- TakeMortgage
@@ -74,5 +76,7 @@ RepayLoan "1" --> "1" Liability : targets
 
 BuyAsset "1" *-- "1" Asset
 BuyAsset "1" *-- "1..*" CashAllocation
+BuyAsset "0..1" *-- "1" Expense : if forLiving
+BuyAsset "0..1" --> "1" Expense : removes
 
 @enduml

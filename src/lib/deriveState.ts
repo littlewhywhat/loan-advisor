@@ -51,6 +51,13 @@ export function deriveState(
             };
           }
         }
+        if (event.removeExpenseId) {
+          const idx = expenses.findIndex((e) => e.id === event.removeExpenseId);
+          if (idx !== -1) expenses.splice(idx, 1);
+        }
+        if (event.newExpense) {
+          expenses.push(event.newExpense);
+        }
         break;
       }
       case 'add_income': {

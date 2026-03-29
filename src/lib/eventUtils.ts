@@ -18,7 +18,7 @@ function ownsEntity(e: FinanceEvent, entityId: string): boolean {
     case 'add_asset':
       return e.asset.id === entityId;
     case 'buy_asset':
-      return e.asset.id === entityId;
+      return e.asset.id === entityId || (!!e.newExpense && e.newExpense.id === entityId);
     case 'add_income':
       return e.income.id === entityId;
     case 'add_expense':
@@ -72,8 +72,11 @@ export function ownedEntityNames(event: FinanceEvent): string[] {
       return [event.loan.name, event.cash.name, event.expense.name];
     case 'add_asset':
       return [event.asset.name];
-    case 'buy_asset':
-      return [event.asset.name];
+    case 'buy_asset': {
+      const names = [event.asset.name];
+      if (event.newExpense) names.push(event.newExpense.name);
+      return names;
+    }
     case 'add_income':
       return [event.income.name];
     case 'add_expense':

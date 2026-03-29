@@ -206,6 +206,20 @@ function injectEvent(
           cash.value = Math.max(0, cash.value - alloc.amount.amount);
         }
       }
+      if (event.removeExpenseId) {
+        const exp = state.expenseItems.find((e) => e.id === event.removeExpenseId);
+        if (exp) exp.active = false;
+        state.paidOffExpenseIds.add(event.removeExpenseId);
+      }
+      if (event.newExpense) {
+        state.expenseItems.push({
+          id: event.newExpense.id,
+          name: event.newExpense.name,
+          monthlyAmount: Math.round(toMonthly(event.newExpense.amount.amount, event.newExpense.frequency)),
+          active: true,
+          isStrategy: true,
+        });
+      }
       break;
     }
     case 'take_mortgage': {
@@ -473,7 +487,11 @@ function collectEntityIds(event: FinanceEvent): string[] {
     case 'add_income': return [event.income.id];
     case 'add_expense': return [event.expense.id];
     case 'add_asset': return [event.asset.id];
-    case 'buy_asset': return [event.asset.id];
+    case 'buy_asset': {
+      const ids = [event.asset.id];
+      if (event.newExpense) ids.push(event.newExpense.id);
+      return ids;
+    }
     case 'take_mortgage': {
       const ids = [event.mortgage.id, event.flat.id, event.expense.id];
       if (event.rental) ids.push(event.income.id);

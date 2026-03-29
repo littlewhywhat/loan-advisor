@@ -43,13 +43,14 @@ import {
 import { fmtMoney, formatMoney } from '@/lib/format';
 import { findOwnerEvent } from '@/lib/eventUtils';
 import { computeLoanDerived } from '@/lib/loanCalc';
-import type { Asset, Cash, Currency, FinanceEvent, Frequency, Liability, NewEventInput, RepayLoanStrategy, Strategy } from '@/types/events';
+import type { Asset, Cash, Currency, Expense, FinanceEvent, Frequency, Liability, NewEventInput, RepayLoanStrategy, Strategy } from '@/types/events';
 
 type Props = {
   strategy: Strategy;
   events: FinanceEvent[];
   liabilities: Liability[];
   cashAssets: Cash[];
+  expenses: Expense[];
   onAddEvent: (event: NewEventInput) => void;
   onRemoveEvent: (index: number) => void;
   onApply: () => void;
@@ -595,12 +596,14 @@ function BuyAssetFields({
   date,
   onDateChange,
   cashAssets,
+  expenses,
 }: {
   form: BuyAssetFormData;
   onChange: (f: BuyAssetFormData) => void;
   date: string;
   onDateChange: (d: string) => void;
   cashAssets: Cash[];
+  expenses: Expense[];
 }) {
   const allocatedTotal = form.allocations.reduce((sum, a) => sum + a.amount, 0);
   const remaining = form.value - allocatedTotal;
@@ -746,6 +749,77 @@ function BuyAssetFields({
           )}
         </Flex>
       </Card>
+
+      {form.kind === 'flat' && (
+        <Card variant="surface">
+          <Flex direction="column" gap="2">
+            <Flex asChild gap="2" align="center">
+              <Text size="2" weight="bold">
+                <Checkbox
+                  checked={form.forLiving}
+                  onCheckedChange={(c) =>
+                    onChange({ ...form, forLiving: c === true })
+                  }
+                />
+                For living
+              </Text>
+            </Flex>
+            {form.forLiving && (
+              <>
+                <div>
+                  <Text size="2" weight="medium" mb="1" asChild><span>Remove Expense</span></Text>
+                  <Select.Root
+                    value={form.removeExpenseId}
+                    onValueChange={(v) => onChange({ ...form, removeExpenseId: v })}
+                  >
+                    <Select.Trigger style={{ width: '100%' }} placeholder="None" />
+                    <Select.Content>
+                      <Select.Item value="">None</Select.Item>
+                      {expenses.map((exp) => (
+                        <Select.Item key={exp.id} value={exp.id}>
+                          {exp.name} ({fmtMoney(exp.amount)}/{exp.frequency})
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </div>
+                <div>
+                  <Text size="2" weight="medium" mb="1" asChild><span>New Expense Name</span></Text>
+                  <TextField.Root
+                    value={form.newExpenseName}
+                    onChange={(e) => onChange({ ...form, newExpenseName: e.target.value })}
+                    placeholder="e.g. Building Fees"
+                  />
+                </div>
+                <Flex gap="3">
+                  <div style={{ flex: 1 }}>
+                    <Text size="2" weight="medium" mb="1" asChild><span>Amount</span></Text>
+                    <TextField.Root
+                      type="number"
+                      value={form.newExpenseAmount || ''}
+                      onChange={(e) => onChange({ ...form, newExpenseAmount: Number(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <Text size="2" weight="medium" mb="1" asChild><span>Frequency</span></Text>
+                    <Select.Root
+                      value={form.newExpenseFrequency}
+                      onValueChange={(v) => onChange({ ...form, newExpenseFrequency: v as Frequency })}
+                    >
+                      <Select.Trigger style={{ width: '100%' }} />
+                      <Select.Content>
+                        {FREQUENCIES.map((f) => (
+                          <Select.Item key={f} value={f}>{FREQ_LABELS[f]}</Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select.Root>
+                  </div>
+                </Flex>
+              </>
+            )}
+          </Flex>
+        </Card>
+      )}
     </>
   );
 }
@@ -760,7 +834,7 @@ const TYPE_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange' | 'purple'
   'Repay Loan': 'purple',
 };
 
-export default function StrategyPanel({ strategy, events, liabilities, cashAssets, onAddEvent, onRemoveEvent, onApply, onDiscard }: Props) {
+export default function StrategyPanel({ strategy, events, liabilities, cashAssets, expenses, onAddEvent, onRemoveEvent, onApply, onDiscard }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [eventType, setEventType] = useState<StrategyEventType>('add_income');
   const [date, setDate] = useState(todayStr);
@@ -922,6 +996,7 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
                 date={date}
                 onDateChange={setDate}
                 cashAssets={cashAssets}
+                expenses={expenses}
               />
             )}
             {eventType === 'take_mortgage' && (
