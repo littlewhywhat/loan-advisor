@@ -1,20 +1,15 @@
 import {
   Badge,
-  Button,
   Card,
   Flex,
   Heading,
-  Select,
   Separator,
-  Slider,
-  Table,
   Text,
+  TextField,
 } from '@radix-ui/themes';
-import { Copy, Import } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ReferenceLine,
@@ -23,163 +18,88 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { useFinance } from '@/context/FinanceProvider';
+import { useEvents } from '@/context/EventProvider';
 import { formatMoney } from '@/lib/format';
 import {
   runSimulation,
-  type SimulationResult,
-  type StrategyConfig,
-  storeToStrategy,
+  type MonthSnapshot,
+  type SimulatorConfig,
 } from '@/lib/simulate';
 
-function emptyStrategy(): StrategyConfig {
+const SYNC_ID = 'simulator-sync';
+
+function useDefaultConfig(): SimulatorConfig {
+  const now = new Date();
   return {
-    assets: [],
-    loans: [],
-    incomes: [],
-    expenses: [],
-    reinvestTargetId: null,
+    targetMonth: now.getMonth() + 1,
+    targetYear: now.getFullYear() + 20,
+    cashReserveGrowthRate: 0,
   };
 }
 
-function StrategyPanel({
-  label,
-  strategy,
-  onImport,
-  onCloneOther,
-  onChangeReinvest,
-}: {
-  label: string;
-  strategy: StrategyConfig;
-  onImport: () => void;
-  onCloneOther: () => void;
-  onChangeReinvest: (id: string | null) => void;
-}) {
-  return (
-    <Card style={{ flex: '1 1 300px' }}>
-      <Flex direction="column" gap="3">
-        <Flex justify="between" align="center">
-          <Heading size="3">{label}</Heading>
-          <Flex gap="2">
-            <Button size="1" variant="soft" onClick={onImport}>
-              <Import size={14} />
-              Import Current
-            </Button>
-            <Button size="1" variant="soft" onClick={onCloneOther}>
-              <Copy size={14} />
-              Clone Other
-            </Button>
-          </Flex>
-        </Flex>
-
-        <Flex gap="4" wrap="wrap">
-          <Text size="1" color="gray">
-            {strategy.assets.length} assets
-          </Text>
-          <Text size="1" color="gray">
-            {strategy.loans.length} loans
-          </Text>
-          <Text size="1" color="gray">
-            {strategy.incomes.length} incomes
-          </Text>
-          <Text size="1" color="gray">
-            {strategy.expenses.length} expenses
-          </Text>
-        </Flex>
-
-        <div>
-          <Text size="2" weight="medium" mb="1" asChild>
-            <span>Reinvest surplus into</span>
-          </Text>
-          <Select.Root
-            value={strategy.reinvestTargetId ?? '_none'}
-            onValueChange={(v) => onChangeReinvest(v === '_none' ? null : v)}
-          >
-            <Select.Trigger style={{ width: '100%' }} />
-            <Select.Content>
-              <Select.Item value="_none">No reinvestment</Select.Item>
-              {strategy.assets.map((a) => (
-                <Select.Item key={a.id} value={a.id}>
-                  {a.name}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-        </div>
-      </Flex>
-    </Card>
-  );
+function formatYAxisValue(v: number): string {
+  if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(0)}k`;
+  return String(v);
 }
 
-function ComparisonChart({
+function formatLabel(snapshots: MonthSnapshot[], i: number | string): string {
+  const snap = snapshots[Number(i) - 1];
+  if (!snap) return '';
+  return `${snap.month}/${snap.year}`;
+}
+
+function SimpleChart({
   title,
   dataKey,
-  resultA,
-  resultB,
-  formatValue,
+  snapshots,
+  color,
+  showZeroLine,
+  selectedMonthIndex,
 }: {
   title: string;
-  dataKey: keyof (typeof resultA.snapshots)[number];
-  resultA: SimulationResult;
-  resultB: SimulationResult;
-  formatValue?: (v: number) => string;
+  dataKey: keyof MonthSnapshot;
+  snapshots: MonthSnapshot[];
+  color: string;
+  showZeroLine?: boolean;
+  selectedMonthIndex: number | null;
 }) {
-  const data = resultA.snapshots.map((snap, i) => ({
-    month: snap.month,
-    A: snap[dataKey],
-    B: resultB.snapshots[i]?.[dataKey] ?? 0,
-  }));
-
-  const fmt = formatValue ?? ((v: number) => formatMoney(v));
-
   return (
     <Card>
       <Heading size="3" mb="3">
         {title}
       </Heading>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
+      <ResponsiveContainer width="100%" height={250}>
+        <LineChart data={snapshots} syncId={SYNC_ID}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
-            dataKey="month"
-            tickFormatter={(m) => `${Math.floor(m / 12)}y`}
+            dataKey="monthIndex"
+            tickFormatter={(i) => formatLabel(snapshots, i)}
+            interval={Math.max(Math.floor(snapshots.length / 10) - 1, 0)}
           />
-          <YAxis
-            tickFormatter={(v) => {
-              if (Math.abs(v) >= 1_000_000)
-                return `${(v / 1_000_000).toFixed(1)}M`;
-              if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(0)}k`;
-              return String(v);
-            }}
-          />
+          <YAxis tickFormatter={formatYAxisValue} />
           <Tooltip
-            formatter={(value, name) => [
-              fmt(Number(value ?? 0)),
-              `Strategy ${name ?? ''}`,
-            ]}
-            labelFormatter={(m) => {
-              const y = Math.floor(Number(m) / 12);
-              const mo = Number(m) % 12;
-              return `Year ${y}, Month ${mo}`;
-            }}
-          />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey="A"
-            stroke="var(--accent-9)"
-            dot={false}
-            strokeWidth={2}
+            formatter={(value) => [formatMoney(Number(value ?? 0)), title]}
+            labelFormatter={(i) => formatLabel(snapshots, i)}
           />
           <Line
             type="monotone"
-            dataKey="B"
-            stroke="var(--orange-9)"
+            dataKey={dataKey}
+            name={title}
+            stroke={color}
             dot={false}
             strokeWidth={2}
           />
-          {dataKey === 'cashFlow' && (
+          {showZeroLine && (
             <ReferenceLine y={0} stroke="var(--gray-8)" strokeDasharray="3 3" />
+          )}
+          {selectedMonthIndex != null && (
+            <ReferenceLine
+              x={selectedMonthIndex}
+              stroke="var(--gray-12)"
+              strokeWidth={1.5}
+              strokeDasharray="4 2"
+            />
           )}
         </LineChart>
       </ResponsiveContainer>
@@ -187,189 +107,382 @@ function ComparisonChart({
   );
 }
 
-const MILESTONES = [5, 10, 15, 20];
-
-function ComparisonTable({
-  resultA,
-  resultB,
+function Row({
+  label,
+  value,
+  color,
+  indent,
+  strikethrough,
 }: {
-  resultA: SimulationResult;
-  resultB: SimulationResult;
+  label: string;
+  value: string;
+  color?: 'green' | 'red' | 'gray';
+  indent?: boolean;
+  strikethrough?: boolean;
 }) {
   return (
-    <Card>
-      <Heading size="3" mb="3">
-        Milestone Comparison
-      </Heading>
-      <Table.Root size="1" variant="surface">
-        <Table.Header>
-          <Table.Row>
-            <Table.ColumnHeaderCell>Year</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Net Worth A</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Net Worth B</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Cash Flow A</Table.ColumnHeaderCell>
-            <Table.ColumnHeaderCell>Cash Flow B</Table.ColumnHeaderCell>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {MILESTONES.map((yr) => {
-            const idx = yr * 12 - 1;
-            const a = resultA.snapshots[idx];
-            const b = resultB.snapshots[idx];
-            if (!a || !b) return null;
-            return (
-              <Table.Row key={yr}>
-                <Table.Cell>{yr}</Table.Cell>
-                <Table.Cell>{formatMoney(a.netWorth)}</Table.Cell>
-                <Table.Cell>{formatMoney(b.netWorth)}</Table.Cell>
-                <Table.Cell>{formatMoney(a.cashFlow)}</Table.Cell>
-                <Table.Cell>{formatMoney(b.cashFlow)}</Table.Cell>
-              </Table.Row>
-            );
-          })}
-        </Table.Body>
-      </Table.Root>
-
-      <Flex direction="column" gap="1" mt="3">
-        <Flex justify="between">
-          <Text size="2" color="gray">
-            FI Date
-          </Text>
-          <Flex gap="4">
-            <Badge color="blue">
-              A: {resultA.fiMonth ? `Month ${resultA.fiMonth}` : 'Not reached'}
-            </Badge>
-            <Badge color="orange">
-              B: {resultB.fiMonth ? `Month ${resultB.fiMonth}` : 'Not reached'}
-            </Badge>
-          </Flex>
-        </Flex>
-        <Flex justify="between">
-          <Text size="2" color="gray">
-            Total Interest Paid
-          </Text>
-          <Flex gap="4">
-            <Text size="2">A: {formatMoney(resultA.totalInterestPaid)}</Text>
-            <Text size="2">B: {formatMoney(resultB.totalInterestPaid)}</Text>
-          </Flex>
-        </Flex>
-        <Flex justify="between">
-          <Text size="2" color="gray">
-            Peak Negative Cash Flow
-          </Text>
-          <Flex gap="4">
-            <Text size="2">A: {formatMoney(resultA.peakNegativeCashFlow)}</Text>
-            <Text size="2">B: {formatMoney(resultB.peakNegativeCashFlow)}</Text>
-          </Flex>
-        </Flex>
-      </Flex>
-    </Card>
+    <Flex justify="between" align="center" pl={indent ? '4' : '0'}>
+      <Text
+        size="2"
+        color={indent ? 'gray' : undefined}
+        style={strikethrough ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
+      >
+        {label}
+      </Text>
+      <Text
+        size="2"
+        weight="bold"
+        color={color}
+        style={strikethrough ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
+      >
+        {value}
+      </Text>
+    </Flex>
   );
 }
 
+function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
+  const fmt = (v: number) => formatMoney(v);
+
+  return (
+    <Flex gap="4" wrap="wrap" align="start">
+      <Card style={{ flex: '1 1 320px' }}>
+        <Flex direction="column" gap="3">
+          <Heading size="4">
+            Income Statement — {snapshot.month}/{snapshot.year}
+          </Heading>
+
+          {snapshot.incomes.length > 0 && (
+            <>
+              <Text size="2" weight="bold" color="gray">
+                Income
+              </Text>
+              {snapshot.incomes.map((inc) => (
+                <Row
+                  key={inc.id}
+                  label={inc.name}
+                  value={`${fmt(inc.monthlyAmount)}/mo`}
+                  indent
+                />
+              ))}
+            </>
+          )}
+
+          <Row
+            label="Total Income"
+            value={`${fmt(snapshot.totalIncome)}/mo`}
+            color="green"
+          />
+
+          <Separator size="4" />
+
+          {snapshot.expenses.length > 0 && (
+            <>
+              <Text size="2" weight="bold" color="gray">
+                Expenses
+              </Text>
+              {snapshot.expenses.map((exp) => (
+                <Row
+                  key={exp.id}
+                  label={exp.name}
+                  value={`${fmt(exp.monthlyAmount)}/mo`}
+                  indent
+                  strikethrough={!exp.active}
+                />
+              ))}
+            </>
+          )}
+
+          <Row
+            label="Total Expenses"
+            value={`${fmt(snapshot.totalExpenses)}/mo`}
+            color="red"
+          />
+
+          <Separator size="4" />
+
+          <Row
+            label="Monthly Cash Flow"
+            value={`${fmt(snapshot.cashFlow)}/mo`}
+            color={snapshot.cashFlow >= 0 ? 'green' : 'red'}
+          />
+        </Flex>
+      </Card>
+
+      <Card style={{ flex: '1 1 320px' }}>
+        <Flex direction="column" gap="3">
+          <Heading size="4">
+            Balance Sheet — {snapshot.month}/{snapshot.year}
+          </Heading>
+
+          <Text size="2" weight="bold" color="gray">
+            Assets
+          </Text>
+          {snapshot.assets.map((a) => (
+            <Flex key={a.id} justify="between" align="center" pl="4">
+              <Flex align="center" gap="2">
+                <Text size="2" color="gray">
+                  {a.name}
+                </Text>
+                <Badge size="1" variant="soft">
+                  {a.kind}
+                </Badge>
+              </Flex>
+              <Text size="2" weight="bold">
+                {fmt(a.value)}
+              </Text>
+            </Flex>
+          ))}
+          {snapshot.cashReserve > 0 && (
+            <Flex justify="between" align="center" pl="4">
+              <Flex align="center" gap="2">
+                <Text size="2" color="gray">
+                  Cash Reserve
+                </Text>
+                <Badge size="1" variant="soft" color="blue">
+                  reserve
+                </Badge>
+              </Flex>
+              <Text size="2" weight="bold">
+                {fmt(snapshot.cashReserve)}
+              </Text>
+            </Flex>
+          )}
+          <Row label="Total Assets" value={fmt(snapshot.totalAssets + snapshot.cashReserve)} />
+
+          <Separator size="4" />
+
+          <Text size="2" weight="bold" color="gray">
+            Liabilities
+          </Text>
+          {snapshot.liabilities.map((l) => (
+            <Flex key={l.id} justify="between" align="center" pl="4">
+              <Flex align="center" gap="2">
+                <Text size="2" color="gray">
+                  {l.name}
+                </Text>
+                <Badge size="1" variant="soft">
+                  {l.kind}
+                </Badge>
+              </Flex>
+              <Text size="2" weight="bold">
+                {fmt(l.balance)}
+              </Text>
+            </Flex>
+          ))}
+          {snapshot.accumulatedDeficit > 0 && (
+            <Flex justify="between" align="center" pl="4">
+              <Flex align="center" gap="2">
+                <Text size="2" color="gray">
+                  Accumulated Deficit
+                </Text>
+                <Badge size="1" variant="soft" color="red">
+                  deficit
+                </Badge>
+              </Flex>
+              <Text size="2" weight="bold">
+                {fmt(snapshot.accumulatedDeficit)}
+              </Text>
+            </Flex>
+          )}
+          <Row
+            label="Total Liabilities"
+            value={fmt(snapshot.totalLiabilities + snapshot.accumulatedDeficit)}
+          />
+
+          <Separator size="4" />
+
+          <Row
+            label="Net Worth"
+            value={fmt(snapshot.netWorth)}
+            color={snapshot.netWorth >= 0 ? 'green' : 'red'}
+          />
+        </Flex>
+      </Card>
+    </Flex>
+  );
+}
+
+function findSnapshotIndex(
+  snapshots: MonthSnapshot[],
+  month: number,
+  year: number,
+): number | null {
+  const idx = snapshots.findIndex((s) => s.month === month && s.year === year);
+  return idx >= 0 ? idx : null;
+}
+
 export default function SimulatorPage() {
-  const { store } = useFinance();
-  const [strategyA, setStrategyA] = useState<StrategyConfig>(emptyStrategy);
-  const [strategyB, setStrategyB] = useState<StrategyConfig>(emptyStrategy);
-  const [horizon, setHorizon] = useState(20);
+  const { events } = useEvents();
+  const defaults = useDefaultConfig();
+  const [targetMonth, setTargetMonth] = useState(defaults.targetMonth);
+  const [targetYear, setTargetYear] = useState(defaults.targetYear);
+  const [cashReserveGrowthRate, setCashReserveGrowthRate] = useState(0);
+  const [viewMonth, setViewMonth] = useState(defaults.targetMonth);
+  const [viewYear, setViewYear] = useState(defaults.targetYear);
 
-  const importCurrent = () => storeToStrategy(store);
-
-  const resultA = useMemo(
-    () => runSimulation(strategyA, horizon),
-    [strategyA, horizon],
+  const config: SimulatorConfig = useMemo(
+    () => ({
+      targetMonth,
+      targetYear,
+      cashReserveGrowthRate: cashReserveGrowthRate / 100,
+    }),
+    [targetMonth, targetYear, cashReserveGrowthRate],
   );
-  const resultB = useMemo(
-    () => runSimulation(strategyB, horizon),
-    [strategyB, horizon],
+
+  const result = useMemo(
+    () => runSimulation(events, config),
+    [events, config],
   );
 
-  const hasData =
-    strategyA.assets.length > 0 ||
-    strategyA.incomes.length > 0 ||
-    strategyB.assets.length > 0 ||
-    strategyB.incomes.length > 0;
+  const hasData = result.snapshots.length > 0;
+
+  const viewIndex = findSnapshotIndex(result.snapshots, viewMonth, viewYear);
+  const selectedSnapshot = viewIndex != null ? result.snapshots[viewIndex] : null;
+  const selectedMonthIndex = selectedSnapshot?.monthIndex ?? null;
 
   return (
     <Flex direction="column" gap="5">
-      <Heading size="7">Strategy Simulator</Heading>
-
-      <Flex gap="4" wrap="wrap">
-        <StrategyPanel
-          label="Strategy A"
-          strategy={strategyA}
-          onImport={() => setStrategyA(importCurrent())}
-          onCloneOther={() => setStrategyA({ ...strategyB })}
-          onChangeReinvest={(id) =>
-            setStrategyA((s) => ({ ...s, reinvestTargetId: id }))
-          }
-        />
-        <StrategyPanel
-          label="Strategy B"
-          strategy={strategyB}
-          onImport={() => setStrategyB(importCurrent())}
-          onCloneOther={() => setStrategyB({ ...strategyA })}
-          onChangeReinvest={(id) =>
-            setStrategyB((s) => ({ ...s, reinvestTargetId: id }))
-          }
-        />
-      </Flex>
+      <Heading size="7">Simulator</Heading>
 
       <Card>
-        <Flex direction="column" gap="2">
-          <Flex justify="between">
-            <Text size="2" weight="medium">
-              Projection Horizon
-            </Text>
-            <Text size="2" weight="bold">
-              {horizon} years
-            </Text>
+        <Flex direction="column" gap="3">
+          <Text size="2" weight="bold" color="gray">
+            Projection Range
+          </Text>
+          <Flex gap="4" wrap="wrap" align="end">
+            <Flex direction="column" gap="1" style={{ width: 120 }}>
+              <Text size="2" weight="medium">
+                Target Month
+              </Text>
+              <TextField.Root
+                type="number"
+                min={1}
+                max={12}
+                value={String(targetMonth)}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (v >= 1 && v <= 12) setTargetMonth(v);
+                }}
+              />
+            </Flex>
+            <Flex direction="column" gap="1" style={{ width: 120 }}>
+              <Text size="2" weight="medium">
+                Target Year
+              </Text>
+              <TextField.Root
+                type="number"
+                min={new Date().getFullYear()}
+                max={2100}
+                value={String(targetYear)}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (v >= new Date().getFullYear() && v <= 2100) setTargetYear(v);
+                }}
+              />
+            </Flex>
+            <Flex direction="column" gap="1" style={{ width: 180 }}>
+              <Text size="2" weight="medium">
+                Cash Reserve Growth (%)
+              </Text>
+              <TextField.Root
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={String(cashReserveGrowthRate)}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!Number.isNaN(v) && v >= 0 && v <= 100) setCashReserveGrowthRate(v);
+                }}
+              />
+            </Flex>
           </Flex>
-          <Slider
-            value={[horizon]}
-            onValueChange={(v) => setHorizon(v[0])}
-            min={5}
-            max={30}
-            step={1}
-          />
+
+          <Separator size="4" />
+
+          <Text size="2" weight="bold" color="gray">
+            View Snapshot
+          </Text>
+          <Flex gap="4" wrap="wrap" align="end">
+            <Flex direction="column" gap="1" style={{ width: 120 }}>
+              <Text size="2" weight="medium">
+                Month
+              </Text>
+              <TextField.Root
+                type="number"
+                min={1}
+                max={12}
+                value={String(viewMonth)}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (v >= 1 && v <= 12) setViewMonth(v);
+                }}
+              />
+            </Flex>
+            <Flex direction="column" gap="1" style={{ width: 120 }}>
+              <Text size="2" weight="medium">
+                Year
+              </Text>
+              <TextField.Root
+                type="number"
+                min={new Date().getFullYear()}
+                max={2100}
+                value={String(viewYear)}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (v >= new Date().getFullYear() && v <= 2100) setViewYear(v);
+                }}
+              />
+            </Flex>
+            {viewIndex == null && hasData && (
+              <Text size="2" color="red">
+                {viewMonth}/{viewYear} is outside the simulation range
+              </Text>
+            )}
+          </Flex>
         </Flex>
       </Card>
 
       {!hasData && (
         <Card>
           <Text size="3" color="gray" align="center">
-            Import your current financial state into one or both strategies to
-            start comparing.
+            Add events to see the simulation projection.
           </Text>
         </Card>
       )}
 
       {hasData && (
         <>
-          <Separator size="4" />
-
-          <ComparisonChart
-            title="Net Worth Over Time"
+          <SimpleChart
+            title="Net Worth"
             dataKey="netWorth"
-            resultA={resultA}
-            resultB={resultB}
+            snapshots={result.snapshots}
+            color="var(--accent-9)"
+            selectedMonthIndex={selectedMonthIndex}
           />
-
-          <ComparisonChart
+          <SimpleChart
             title="Monthly Cash Flow"
             dataKey="cashFlow"
-            resultA={resultA}
-            resultB={resultB}
+            snapshots={result.snapshots}
+            color="var(--green-9)"
+            showZeroLine
+            selectedMonthIndex={selectedMonthIndex}
+          />
+          <SimpleChart
+            title="Cash Reserve"
+            dataKey="cashReserve"
+            snapshots={result.snapshots}
+            color="var(--blue-9)"
+            selectedMonthIndex={selectedMonthIndex}
           />
 
-          <ComparisonChart
-            title="Passive Income"
-            dataKey="passiveIncome"
-            resultA={resultA}
-            resultB={resultB}
-          />
-
-          <ComparisonTable resultA={resultA} resultB={resultB} />
+          {selectedSnapshot && (
+            <>
+              <Separator size="4" />
+              <SnapshotDetail snapshot={selectedSnapshot} />
+            </>
+          )}
         </>
       )}
     </Flex>
