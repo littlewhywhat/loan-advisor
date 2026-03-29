@@ -11,7 +11,8 @@
     "format": "biome format --write .",
     "check": "biome check --write .",
     "typecheck": "tsc --noEmit",
-    "ci": "pnpm run check && pnpm run typecheck && pnpm run build"
+    "test": "vitest run",
+    "ci": "pnpm run check && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@radix-ui/themes": "^3.3.0",
@@ -30,7 +31,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
     "typescript": "^5.9.3",
-    "vite": "^6.4.1"
+    "vite": "^6.4.1",
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=22"

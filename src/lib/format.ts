@@ -1,6 +1,13 @@
-import type { Currency, Frequency } from '@/types/finance';
+import type { Currency, Frequency, MoneyAmount } from '@/types/events';
+import type {
+  Currency as LegacyCurrency,
+  Frequency as LegacyFrequency,
+} from '@/types/finance';
 
-const FORMATTERS: Record<Currency, Intl.NumberFormat> = {
+type AnyCurrency = Currency | LegacyCurrency;
+type AnyFrequency = Frequency | LegacyFrequency;
+
+const FORMATTERS: Record<string, Intl.NumberFormat> = {
   CZK: new Intl.NumberFormat('cs-CZ', {
     style: 'currency',
     currency: 'CZK',
@@ -11,16 +18,25 @@ const FORMATTERS: Record<Currency, Intl.NumberFormat> = {
     currency: 'EUR',
     maximumFractionDigits: 0,
   }),
+  USD: new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }),
 };
 
 export function formatMoney(
   amount: number,
-  currency: Currency = 'CZK',
+  currency: AnyCurrency = 'CZK',
 ): string {
-  return FORMATTERS[currency].format(amount);
+  return (FORMATTERS[currency] ?? FORMATTERS.CZK).format(amount);
 }
 
-export function toMonthly(amount: number, frequency: Frequency): number {
+export function fmtMoney(m: MoneyAmount): string {
+  return formatMoney(m.amount, m.currency);
+}
+
+export function toMonthly(amount: number, frequency: AnyFrequency): number {
   if (frequency === 'monthly') return amount;
   if (frequency === 'quarterly') return amount / 3;
   return amount / 12;

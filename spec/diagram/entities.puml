@@ -1,0 +1,73 @@
+@startuml finance-entities
+
+enum Currency {
+  EUR
+  USD
+  CZK
+}
+
+enum Frequency {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+object MoneyAmount <<value object>> {
+  * amount : decimal
+  * currency : Currency
+}
+
+entity Income {
+  * id : uuid <<PK>>
+  --
+  * name : varchar
+  * amount : MoneyAmount
+  * frequency : Frequency
+}
+
+entity Expense {
+  * id : uuid <<PK>>
+  --
+  * name : varchar
+  * amount : MoneyAmount
+  * frequency : Frequency
+}
+
+entity Asset {
+  * id : uuid <<PK>>
+  --
+  * name : varchar
+  * value : MoneyAmount
+  * growth_rate : decimal
+}
+
+entity Flat {
+}
+
+entity Cash {
+}
+
+entity Liability {
+  * id : uuid <<PK>>
+  --
+  * name : varchar
+  * start_date : date
+  * end_date : date
+}
+
+entity Loan {
+  * value : MoneyAmount
+  * interest_rate : decimal
+}
+
+' bought flat value is sum of loan value plus down_payment
+entity Mortgage {
+  * down_payment : MoneyAmount
+}
+
+Liability <|-- Loan
+Loan <|-- Mortgage
+Asset <|-- Flat
+Asset <|-- Cash
+
+@enduml

@@ -15,4 +15,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  test: {
+    root: path.resolve(__dirname),
+    include: ['test/**/*.test.ts'],
+  },
 });

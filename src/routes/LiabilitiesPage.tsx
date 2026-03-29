@@ -3,421 +3,362 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Dialog,
   Flex,
   Heading,
   Select,
-  Table,
   Text,
   TextField,
 } from '@radix-ui/themes';
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useFinance } from '@/context/FinanceProvider';
-import { buildAmortizationSchedule } from '@/lib/amortization';
-import { formatMoney, toMonthly } from '@/lib/format';
-import { computeLoanDerived, liveBalance } from '@/lib/loanCalc';
+import { useEvents } from '@/context/EventProvider';
+import {
+  findOwnerEvent,
+  isEventEditable,
+  ownedEntityNames,
+  todayStr,
+} from '@/lib/eventUtils';
+import { fmtMoney, formatMoney, formatPct } from '@/lib/format';
+import { computeLoanDerived } from '@/lib/loanCalc';
 import type {
-  AssetType,
   Currency,
+  FinanceEvent,
   Frequency,
   Liability,
-  LiabilityInput,
-  Loan,
-  LoanType,
-  Recurring,
-} from '@/types/finance';
+  TakeMortgageEvent,
+  TakePersonalLoanEvent,
+} from '@/types/events';
 
-const LOAN_TYPES: LoanType[] = [
-  'living_mortgage',
-  'american_mortgage',
-  'business',
-  'personal',
-];
-
-const LOAN_TYPE_LABELS: Record<LoanType, string> = {
-  living_mortgage: 'Living Mortgage',
-  american_mortgage: 'American Mortgage',
-  business: 'Business Loan',
-  personal: 'Personal Loan',
-};
-
-const FREQ_LABELS: Record<Frequency, string> = {
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  annually: 'Annually',
-};
-
-const ALL_ASSET_TYPES: AssetType[] = [
-  'real_estate',
-  'cash',
-  'etf',
-  'crypto',
-  'other',
-];
-
-const ASSET_TYPE_LABELS: Record<AssetType, string> = {
-  cash: 'Cash',
-  real_estate: 'Real Estate',
-  etf: 'ETF',
-  crypto: 'Crypto',
-  other: 'Other',
-};
-
-function isLoan(l: Liability): l is Loan {
-  return l.type === 'loan';
+function computeMonthlyPayment(
+  principal: number,
+  annualRate: number,
+  termYears: number,
+): number {
+  const n = termYears * 12;
+  const r = annualRate / 12;
+  if (n <= 0 || principal <= 0) return 0;
+  if (r === 0) return principal / n;
+  return (principal * r * (1 + r) ** n) / ((1 + r) ** n - 1);
 }
 
-function isRecurring(l: Liability): l is Recurring {
-  return l.type === 'recurring';
+function addYears(dateStr: string, years: number): string {
+  const d = new Date(dateStr);
+  d.setFullYear(d.getFullYear() + years);
+  return d.toISOString().slice(0, 10);
 }
 
-type LoanFormData = {
+type MortgageForm = {
   name: string;
-  loanType: LoanType;
-  originalAmount: number;
-  interestRate: number;
-  startDate: string;
-  endDate: string;
-  linkedAssetId: string;
-  assetName: string;
-  assetType: AssetType;
-  assetValue: number;
-};
-
-type RecurringFormData = {
-  name: string;
-  amount: number;
-  frequency: Frequency;
+  loanValue: number;
+  downPayment: number;
+  interestRate: string;
   currency: Currency;
-  linkedAssetId: string;
+  startDate: string;
+  termYears: number;
+  growthRate: string;
+  rental: boolean;
+  rentalIncomeName: string;
+  rentalIncomeAmount: number;
 };
 
-function emptyLoanForm(): LoanFormData {
+type PersonalLoanForm = {
+  name: string;
+  loanValue: number;
+  interestRate: string;
+  currency: Currency;
+  startDate: string;
+  termYears: number;
+};
+
+function yearsBetween(start: string, end: string): number {
+  const s = new Date(start);
+  const e = new Date(end);
+  return Math.round(
+    e.getFullYear() - s.getFullYear() + (e.getMonth() - s.getMonth()) / 12,
+  );
+}
+
+function mortgageEventToForm(event: TakeMortgageEvent): MortgageForm {
   return {
-    name: '',
-    loanType: 'living_mortgage',
-    originalAmount: 0,
-    interestRate: 0.05,
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: '',
-    linkedAssetId: '',
-    assetName: '',
-    assetType: 'real_estate',
-    assetValue: 0,
+    name: event.flat.name,
+    loanValue: event.mortgage.value.amount,
+    downPayment: event.mortgage.downPayment.amount,
+    interestRate: (event.mortgage.interestRate * 100).toFixed(1),
+    currency: event.mortgage.value.currency,
+    startDate: event.mortgage.startDate,
+    termYears: yearsBetween(event.mortgage.startDate, event.mortgage.endDate),
+    growthRate: (event.flat.growthRate * 100).toFixed(1),
+    rental: event.rental,
+    rentalIncomeName: event.rental ? event.income.name : '',
+    rentalIncomeAmount: event.rental ? event.income.amount.amount : 0,
   };
 }
 
-function emptyRecurringForm(): RecurringFormData {
+function loanEventToForm(event: TakePersonalLoanEvent): PersonalLoanForm {
+  return {
+    name: event.cash.name.replace(/ Cash$/, ''),
+    loanValue: event.loan.value.amount,
+    interestRate: (event.loan.interestRate * 100).toFixed(1),
+    currency: event.loan.value.currency,
+    startDate: event.loan.startDate,
+    termYears: yearsBetween(event.loan.startDate, event.loan.endDate),
+  };
+}
+
+function emptyMortgageForm(): MortgageForm {
   return {
     name: '',
-    amount: 0,
-    frequency: 'monthly',
+    loanValue: 0,
+    downPayment: 0,
+    interestRate: '5.5',
     currency: 'CZK',
-    linkedAssetId: '',
+    startDate: todayStr(),
+    termYears: 30,
+    growthRate: '3.0',
+    rental: false,
+    rentalIncomeName: '',
+    rentalIncomeAmount: 0,
   };
 }
 
-function loanToForm(l: Loan): LoanFormData {
+function emptyLoanForm(): PersonalLoanForm {
   return {
-    name: l.name,
-    loanType: l.loanType,
-    originalAmount: l.originalAmount,
-    interestRate: l.interestRate,
-    startDate: l.startDate.slice(0, 10),
-    endDate: l.endDate?.slice(0, 10) ?? '',
-    linkedAssetId: l.linkedAssetId,
-    assetName: '',
-    assetType: 'real_estate',
-    assetValue: 0,
+    name: '',
+    loanValue: 0,
+    interestRate: '8.0',
+    currency: 'CZK',
+    startDate: todayStr(),
+    termYears: 5,
   };
-}
-
-function recurringToForm(r: Recurring): RecurringFormData {
-  return {
-    name: r.name,
-    amount: r.amount,
-    frequency: r.frequency,
-    currency: r.currency as Currency,
-    linkedAssetId: r.linkedAssetId ?? '',
-  };
-}
-
-function recurringFormToInput(f: RecurringFormData): LiabilityInput {
-  return {
-    type: 'recurring',
-    name: f.name,
-    amount: f.amount,
-    frequency: f.frequency,
-    currency: f.currency,
-    linkedAssetId: f.linkedAssetId || null,
-  };
-}
-
-function AmortizationTable({ loan }: { loan: Loan }) {
-  const balance = liveBalance(loan);
-  const schedule = useMemo(
-    () =>
-      buildAmortizationSchedule(
-        balance,
-        loan.interestRate,
-        loan.monthlyPayment,
-      ),
-    [balance, loan.interestRate, loan.monthlyPayment],
-  );
-
-  if (schedule.length === 0) return null;
-
-  return (
-    <Table.Root
-      size="1"
-      variant="surface"
-      style={{ maxHeight: 300, overflowY: 'auto' }}
-    >
-      <Table.Header>
-        <Table.Row>
-          <Table.ColumnHeaderCell>Month</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Payment</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Principal</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Interest</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Remaining</Table.ColumnHeaderCell>
-        </Table.Row>
-      </Table.Header>
-      <Table.Body>
-        {schedule.map((row) => (
-          <Table.Row key={row.month}>
-            <Table.Cell>{row.month}</Table.Cell>
-            <Table.Cell>{formatMoney(row.payment)}</Table.Cell>
-            <Table.Cell>{formatMoney(row.principal)}</Table.Cell>
-            <Table.Cell>{formatMoney(row.interest)}</Table.Cell>
-            <Table.Cell>{formatMoney(row.remaining)}</Table.Cell>
-          </Table.Row>
-        ))}
-      </Table.Body>
-    </Table.Root>
-  );
 }
 
 export default function LiabilitiesPage() {
-  const { store, addLiability, updateLiability, removeLiability, addAsset } =
-    useFinance();
+  const {
+    events,
+    derived,
+    archivedDerived,
+    addEvent,
+    updateEvent,
+    archiveEvent,
+    restoreEvent,
+    deleteEvent,
+  } = useEvents();
+
+  const [mortgageDialogOpen, setMortgageDialogOpen] = useState(false);
   const [loanDialogOpen, setLoanDialogOpen] = useState(false);
-  const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [loanForm, setLoanForm] = useState<LoanFormData>(emptyLoanForm);
-  const [recurringForm, setRecurringForm] =
-    useState<RecurringFormData>(emptyRecurringForm);
+  const [mortgageForm, setMortgageForm] = useState(emptyMortgageForm);
+  const [loanForm, setLoanForm] = useState(emptyLoanForm);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Liability | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<Liability | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Liability | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const allLoans = store.liabilities.filter(isLoan);
-  const isFuture = (l: Loan) => new Date(l.startDate) > new Date();
-  const activeLoans = allLoans.filter((l) => !isFuture(l));
-  const futureLoans = allLoans.filter(isFuture);
-  const recurrings = store.liabilities.filter(isRecurring);
+  const openEditMortgage = (event: TakeMortgageEvent) => {
+    setEditingEventId(event.id);
+    setMortgageForm(mortgageEventToForm(event));
+    setMortgageDialogOpen(true);
+  };
 
-  const computed = useMemo(() => {
-    if (
-      !loanForm.originalAmount ||
-      !loanForm.interestRate ||
-      !loanForm.startDate ||
-      !loanForm.endDate
-    ) {
-      return null;
+  const openEditLoan = (event: TakePersonalLoanEvent) => {
+    setEditingEventId(event.id);
+    setLoanForm(loanEventToForm(event));
+    setLoanDialogOpen(true);
+  };
+
+  const mortgageMonthly = useMemo(
+    () =>
+      computeMonthlyPayment(
+        mortgageForm.loanValue,
+        Number(mortgageForm.interestRate) / 100,
+        mortgageForm.termYears,
+      ),
+    [mortgageForm.loanValue, mortgageForm.interestRate, mortgageForm.termYears],
+  );
+
+  const loanMonthly = useMemo(
+    () =>
+      computeMonthlyPayment(
+        loanForm.loanValue,
+        Number(loanForm.interestRate) / 100,
+        loanForm.termYears,
+      ),
+    [loanForm.loanValue, loanForm.interestRate, loanForm.termYears],
+  );
+
+  const handleSaveMortgage = () => {
+    if (!mortgageForm.name.trim() || mortgageForm.loanValue <= 0) return;
+    const rate = Number(mortgageForm.interestRate) / 100;
+    const currency = mortgageForm.currency;
+    const endDate = addYears(mortgageForm.startDate, mortgageForm.termYears);
+    const flatValue = mortgageForm.loanValue + mortgageForm.downPayment;
+
+    const existingEvent = editingEventId
+      ? (events.find((e) => e.id === editingEventId) as
+          | TakeMortgageEvent
+          | undefined)
+      : undefined;
+    const uid = (existing?: string) => existing ?? crypto.randomUUID();
+
+    const base = {
+      type: 'take_mortgage' as const,
+      date: mortgageForm.startDate,
+      mortgage: {
+        id: uid(existingEvent?.mortgage.id),
+        name: `${mortgageForm.name} Mortgage`,
+        kind: 'mortgage' as const,
+        value: { amount: mortgageForm.loanValue, currency },
+        interestRate: rate,
+        startDate: mortgageForm.startDate,
+        endDate,
+        downPayment: { amount: mortgageForm.downPayment, currency },
+      },
+      flat: {
+        id: uid(existingEvent?.flat.id),
+        name: mortgageForm.name,
+        kind: 'flat' as const,
+        value: { amount: flatValue, currency },
+        growthRate: Number(mortgageForm.growthRate) / 100,
+      },
+      expense: {
+        id: uid(existingEvent?.expense.id),
+        name: `${mortgageForm.name} Payment`,
+        amount: { amount: Math.round(mortgageMonthly), currency },
+        frequency: 'monthly' as Frequency,
+      },
+    };
+
+    const buildEvent = (): FinanceEvent => {
+      if (mortgageForm.rental) {
+        const existingIncomeId = existingEvent?.rental
+          ? existingEvent.income.id
+          : undefined;
+        return {
+          ...base,
+          id: editingEventId ?? '',
+          status: 'active',
+          rental: true,
+          income: {
+            id: uid(existingIncomeId),
+            name: mortgageForm.rentalIncomeName || `${mortgageForm.name} Rent`,
+            amount: { amount: mortgageForm.rentalIncomeAmount, currency },
+            frequency: 'monthly' as Frequency,
+          },
+        };
+      }
+      return {
+        ...base,
+        id: editingEventId ?? '',
+        status: 'active',
+        rental: false,
+      };
+    };
+
+    if (editingEventId) {
+      updateEvent(editingEventId, (prev) => ({
+        ...prev,
+        ...buildEvent(),
+      }));
+    } else {
+      if (mortgageForm.rental) {
+        addEvent({
+          ...base,
+          rental: true,
+          income: {
+            id: crypto.randomUUID(),
+            name: mortgageForm.rentalIncomeName || `${mortgageForm.name} Rent`,
+            amount: { amount: mortgageForm.rentalIncomeAmount, currency },
+            frequency: 'monthly' as Frequency,
+          },
+        });
+      } else {
+        addEvent({ ...base, rental: false });
+      }
     }
-    return computeLoanDerived(
-      loanForm.originalAmount,
-      loanForm.interestRate,
-      loanForm.startDate,
-      loanForm.endDate,
-    );
-  }, [
-    loanForm.originalAmount,
-    loanForm.interestRate,
-    loanForm.startDate,
-    loanForm.endDate,
-  ]);
 
-  const openAddLoan = () => {
-    setEditingId(null);
-    setLoanForm(emptyLoanForm());
-    setLoanDialogOpen(true);
-  };
-
-  const openAddRecurring = () => {
-    setEditingId(null);
-    setRecurringForm(emptyRecurringForm());
-    setRecurringDialogOpen(true);
-  };
-
-  const openEditLoan = (loan: Loan) => {
-    setEditingId(loan.id);
-    setLoanForm(loanToForm(loan));
-    setLoanDialogOpen(true);
-  };
-
-  const openEditRecurring = (r: Recurring) => {
-    setEditingId(r.id);
-    setRecurringForm(recurringToForm(r));
-    setRecurringDialogOpen(true);
+    setMortgageDialogOpen(false);
+    setMortgageForm(emptyMortgageForm());
+    setEditingEventId(null);
   };
 
   const handleSaveLoan = () => {
-    if (!loanForm.name.trim() || !computed) return;
+    if (!loanForm.name.trim() || loanForm.loanValue <= 0) return;
+    const rate = Number(loanForm.interestRate) / 100;
+    const currency = loanForm.currency;
+    const endDate = addYears(loanForm.startDate, loanForm.termYears);
 
-    if (editingId) {
-      updateLiability(editingId, {
-        type: 'loan',
-        name: loanForm.name,
-        loanType: loanForm.loanType,
-        originalAmount: loanForm.originalAmount,
-        currentBalance: computed.currentBalance,
-        interestRate: loanForm.interestRate,
-        monthlyPayment: computed.monthlyPayment,
+    const existingEvent = editingEventId
+      ? (events.find((e) => e.id === editingEventId) as
+          | TakePersonalLoanEvent
+          | undefined)
+      : undefined;
+    const uid = (existing?: string) => existing ?? crypto.randomUUID();
+
+    const eventData = {
+      type: 'take_personal_loan' as const,
+      date: loanForm.startDate,
+      loan: {
+        id: uid(existingEvent?.loan.id),
+        name: `${loanForm.name} Loan`,
+        kind: 'loan' as const,
+        value: { amount: loanForm.loanValue, currency },
+        interestRate: rate,
         startDate: loanForm.startDate,
-        endDate: loanForm.endDate || null,
-        linkedAssetId: loanForm.linkedAssetId,
-      });
+        endDate,
+      },
+      cash: {
+        id: uid(existingEvent?.cash.id),
+        name: `${loanForm.name} Cash`,
+        kind: 'cash' as const,
+        value: { amount: loanForm.loanValue, currency },
+        growthRate: existingEvent?.cash.growthRate ?? 0,
+      },
+      expense: {
+        id: uid(existingEvent?.expense.id),
+        name: `${loanForm.name} Payment`,
+        amount: { amount: Math.round(loanMonthly), currency },
+        frequency: 'monthly' as const,
+      },
+    };
+
+    if (editingEventId) {
+      updateEvent(editingEventId, (prev) => ({
+        ...prev,
+        ...eventData,
+      }));
     } else {
-      let assetId = loanForm.linkedAssetId;
-
-      if (!assetId) {
-        if (!loanForm.assetName.trim()) return;
-        assetId = addAsset({
-          name: loanForm.assetName,
-          type: loanForm.assetType,
-          value: loanForm.assetValue || loanForm.originalAmount,
-          currency: store.currency,
-          yearlyGrowthRate: null,
-          usage: loanForm.assetType === 'real_estate' ? 'living' : null,
-          rentSavings: null,
-          linkedIncomeIds: [],
-        });
-      }
-
-      addLiability({
-        type: 'loan',
-        name: loanForm.name,
-        loanType: loanForm.loanType,
-        originalAmount: loanForm.originalAmount,
-        currentBalance: computed.currentBalance,
-        interestRate: loanForm.interestRate,
-        monthlyPayment: computed.monthlyPayment,
-        startDate: loanForm.startDate,
-        endDate: loanForm.endDate || null,
-        linkedAssetId: assetId,
-      });
+      addEvent(eventData);
     }
+
     setLoanDialogOpen(false);
+    setLoanForm(emptyLoanForm());
+    setEditingEventId(null);
   };
 
-  const handleSaveRecurring = () => {
-    if (!recurringForm.name.trim()) return;
-    if (editingId) {
-      updateLiability(editingId, recurringFormToInput(recurringForm));
-    } else {
-      addLiability(recurringFormToInput(recurringForm));
-    }
-    setRecurringDialogOpen(false);
+  const handleArchive = () => {
+    if (!archiveTarget) return;
+    const owner = findOwnerEvent(events, archiveTarget.id);
+    if (owner) archiveEvent(owner.id);
+    setArchiveTarget(null);
   };
+
+  const handleRestore = () => {
+    if (!restoreTarget) return;
+    const owner = findOwnerEvent(events, restoreTarget.id);
+    if (owner) restoreEvent(owner.id);
+    setRestoreTarget(null);
+  };
+
+  const restoreOwner = restoreTarget
+    ? findOwnerEvent(events, restoreTarget.id)
+    : undefined;
 
   const handleDelete = () => {
     if (!deleteTarget) return;
-    removeLiability(deleteTarget.id);
+    const owner = findOwnerEvent(events, deleteTarget.id);
+    if (owner) deleteEvent(owner.id);
     setDeleteTarget(null);
-  };
-
-  const assetNameById = (assetId: string | null) => {
-    if (!assetId) return null;
-    return store.assets.find((a) => a.id === assetId)?.name ?? null;
-  };
-
-  const renderLoanCard = (loan: Loan, showStartDate: boolean) => {
-    const assetName = assetNameById(loan.linkedAssetId);
-    const expanded = expandedId === loan.id;
-    const balance = liveBalance(loan);
-    return (
-      <Card key={loan.id} style={showStartDate ? { opacity: 0.75 } : undefined}>
-        <Flex direction="column" gap="2">
-          <Flex justify="between" align="center">
-            <Flex align="center" gap="2">
-              <Text size="3" weight="bold">
-                {loan.name}
-              </Text>
-              <Badge size="1" variant="soft">
-                {LOAN_TYPE_LABELS[loan.loanType]}
-              </Badge>
-              {showStartDate && (
-                <Badge size="1" variant="soft" color="blue">
-                  Starts {loan.startDate}
-                </Badge>
-              )}
-            </Flex>
-            <Flex gap="2">
-              <Button
-                size="1"
-                variant="ghost"
-                onClick={() => setExpandedId(expanded ? null : loan.id)}
-              >
-                {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </Button>
-              <Button
-                size="1"
-                variant="ghost"
-                onClick={() => openEditLoan(loan)}
-              >
-                <Pencil size={14} />
-              </Button>
-              <Button
-                size="1"
-                variant="ghost"
-                color="red"
-                onClick={() => setDeleteTarget(loan)}
-              >
-                <Trash2 size={14} />
-              </Button>
-            </Flex>
-          </Flex>
-
-          <Flex gap="5" wrap="wrap">
-            <Flex direction="column">
-              <Text size="1" color="gray">
-                {showStartDate ? 'Amount' : 'Remaining'}
-              </Text>
-              <Text size="2" weight="bold">
-                {formatMoney(showStartDate ? loan.originalAmount : balance)}
-              </Text>
-            </Flex>
-            <Flex direction="column">
-              <Text size="1" color="gray">
-                Monthly Payment
-              </Text>
-              <Text size="2" weight="bold">
-                {formatMoney(loan.monthlyPayment)}
-              </Text>
-            </Flex>
-            <Flex direction="column">
-              <Text size="1" color="gray">
-                Rate
-              </Text>
-              <Text size="2" weight="bold">
-                {(loan.interestRate * 100).toFixed(1)}%
-              </Text>
-            </Flex>
-            {assetName && (
-              <Flex direction="column">
-                <Text size="1" color="gray">
-                  Asset
-                </Text>
-                <Text size="2">{assetName}</Text>
-              </Flex>
-            )}
-          </Flex>
-
-          {expanded && !showStartDate && <AmortizationTable loan={loan} />}
-        </Flex>
-      </Card>
-    );
   };
 
   return (
@@ -425,89 +366,80 @@ export default function LiabilitiesPage() {
       <Flex justify="between" align="center">
         <Heading size="7">Liabilities</Heading>
         <Flex gap="2">
-          <Button variant="soft" onClick={openAddRecurring}>
+          <Button
+            variant="soft"
+            onClick={() => {
+              setEditingEventId(null);
+              setLoanForm(emptyLoanForm());
+              setLoanDialogOpen(true);
+            }}
+          >
             <Plus size={16} />
-            Add Recurring
+            Take Personal Loan
           </Button>
-          <Button onClick={openAddLoan}>
+          <Button
+            onClick={() => {
+              setEditingEventId(null);
+              setMortgageForm(emptyMortgageForm());
+              setMortgageDialogOpen(true);
+            }}
+          >
             <Plus size={16} />
-            Add Loan
+            Take Mortgage
           </Button>
         </Flex>
       </Flex>
 
-      {allLoans.length === 0 && recurrings.length === 0 && (
+      {derived.liabilities.length === 0 && (
         <Card>
           <Text size="3" color="gray" align="center">
-            No liabilities yet. Add a loan or recurring cost to get started.
+            No liabilities yet. Take a mortgage or personal loan to get started.
           </Text>
         </Card>
       )}
 
-      {activeLoans.length > 0 && (
-        <Flex direction="column" gap="3">
-          <Text size="2" weight="bold" color="gray">
-            Loans
-          </Text>
-          {activeLoans.map((loan) => renderLoanCard(loan, false))}
-        </Flex>
-      )}
-
-      {futureLoans.length > 0 && (
-        <Flex direction="column" gap="3">
-          <Text size="2" weight="bold" color="gray">
-            Upcoming Loans
-          </Text>
-          {futureLoans.map((loan) => renderLoanCard(loan, true))}
-        </Flex>
-      )}
-
-      {recurrings.length > 0 && (
-        <Flex direction="column" gap="3">
-          <Text size="2" weight="bold" color="gray">
-            Recurring Costs
-          </Text>
-          {recurrings.map((r) => {
-            const assetName = assetNameById(r.linkedAssetId);
-            return (
-              <Card key={r.id}>
-                <Flex justify="between" align="center">
-                  <Flex direction="column" gap="1">
-                    <Flex align="center" gap="2">
-                      <Text size="3" weight="bold">
-                        {r.name}
-                      </Text>
-                      <Badge size="1" variant="soft" color="orange">
-                        {FREQ_LABELS[r.frequency]}
-                      </Badge>
-                      {assetName && (
-                        <Badge size="1" variant="outline">
-                          {assetName}
-                        </Badge>
-                      )}
-                    </Flex>
-                    <Text size="2" weight="bold">
-                      {formatMoney(r.amount, r.currency as Currency)}/
-                      {r.frequency === 'monthly'
-                        ? 'mo'
-                        : r.frequency === 'quarterly'
-                          ? 'qtr'
-                          : 'yr'}
-                      <Text size="1" color="gray" ml="2">
-                        (
-                        {formatMoney(
-                          toMonthly(r.amount, r.frequency),
-                          r.currency as Currency,
-                        )}
-                        /mo)
-                      </Text>
-                    </Text>
-                  </Flex>
+      {derived.liabilities.map((liability) => {
+        const owner = findOwnerEvent(events, liability.id);
+        const editable = owner && isEventEditable(owner);
+        const loanDerived = computeLoanDerived(
+          liability.value.amount,
+          liability.interestRate,
+          liability.startDate,
+          liability.endDate,
+        );
+        const paidPrincipal =
+          liability.value.amount - loanDerived.currentBalance;
+        return (
+          <Card key={liability.id}>
+            <Flex direction="column" gap="2">
+              <Flex justify="between" align="center">
+                <Flex align="center" gap="2">
+                  <Text size="3" weight="bold">
+                    {liability.name}
+                  </Text>
+                  <Badge
+                    size="1"
+                    color={liability.kind === 'mortgage' ? 'blue' : 'orange'}
+                  >
+                    {liability.kind === 'mortgage' ? 'Mortgage' : 'Loan'}
+                  </Badge>
+                  {owner && (
+                    <Badge size="1" variant="soft" color="gray">
+                      from {owner.type.replace(/_/g, ' ')}
+                    </Badge>
+                  )}
+                </Flex>
+                {editable && (
                   <Flex gap="2">
                     <Button
                       size="1"
                       variant="ghost"
-                      onClick={() => openEditRecurring(r)}
+                      onClick={() => {
+                        if (owner.type === 'take_mortgage')
+                          openEditMortgage(owner);
+                        else if (owner.type === 'take_personal_loan')
+                          openEditLoan(owner);
+                      }}
                     >
                       <Pencil size={14} />
                     </Button>
@@ -515,74 +447,247 @@ export default function LiabilitiesPage() {
                       size="1"
                       variant="ghost"
                       color="red"
-                      onClick={() => setDeleteTarget(r)}
+                      onClick={() => setArchiveTarget(liability)}
                     >
-                      <Trash2 size={14} />
+                      <Archive size={14} />
                     </Button>
                   </Flex>
+                )}
+              </Flex>
+
+              <Flex gap="5" wrap="wrap">
+                <Flex direction="column">
+                  <Text size="1" color="gray">
+                    Original
+                  </Text>
+                  <Text size="2" weight="bold">
+                    {fmtMoney(liability.value)}
+                  </Text>
                 </Flex>
-              </Card>
-            );
-          })}
-        </Flex>
+                {paidPrincipal > 0 && (
+                  <>
+                    <Flex direction="column">
+                      <Text size="1" color="gray">
+                        Balance
+                      </Text>
+                      <Text size="2" weight="bold">
+                        {formatMoney(
+                          loanDerived.currentBalance,
+                          liability.value.currency,
+                        )}
+                      </Text>
+                    </Flex>
+                    <Flex direction="column">
+                      <Text size="1" color="gray">
+                        Paid Principal
+                      </Text>
+                      <Text size="2" weight="bold" color="green">
+                        {formatMoney(paidPrincipal, liability.value.currency)}
+                      </Text>
+                    </Flex>
+                  </>
+                )}
+                <Flex direction="column">
+                  <Text size="1" color="gray">
+                    Rate
+                  </Text>
+                  <Text size="2" weight="bold">
+                    {formatPct(liability.interestRate)}
+                  </Text>
+                </Flex>
+                {liability.kind === 'mortgage' &&
+                  liability.downPayment.amount > 0 && (
+                    <Flex direction="column">
+                      <Text size="1" color="gray">
+                        Down Payment
+                      </Text>
+                      <Text size="2" weight="bold">
+                        {fmtMoney(liability.downPayment)}
+                      </Text>
+                    </Flex>
+                  )}
+                <Flex direction="column">
+                  <Text size="1" color="gray">
+                    Start
+                  </Text>
+                  <Badge size="1" variant="soft">
+                    {liability.startDate}
+                  </Badge>
+                </Flex>
+                <Flex direction="column">
+                  <Text size="1" color="gray">
+                    End
+                  </Text>
+                  <Badge size="1" variant="soft">
+                    {liability.endDate}
+                  </Badge>
+                </Flex>
+              </Flex>
+
+              {owner && (
+                <Flex gap="3" wrap="wrap">
+                  {owner.type === 'take_mortgage' && (
+                    <>
+                      <Flex gap="1" align="center">
+                        <Text size="1" color="gray">
+                          Flat:
+                        </Text>
+                        <Badge size="1" variant="soft" color="blue">
+                          {owner.flat.name} {fmtMoney(owner.flat.value)}
+                        </Badge>
+                      </Flex>
+                      <Flex gap="1" align="center">
+                        <Text size="1" color="gray">
+                          Payment:
+                        </Text>
+                        <Badge size="1" variant="soft" color="orange">
+                          {fmtMoney(owner.expense.amount)}/mo
+                        </Badge>
+                      </Flex>
+                      {owner.rental && (
+                        <Flex gap="1" align="center">
+                          <Text size="1" color="gray">
+                            Rent:
+                          </Text>
+                          <Badge size="1" variant="soft" color="green">
+                            {fmtMoney(owner.income.amount)}/mo
+                          </Badge>
+                        </Flex>
+                      )}
+                    </>
+                  )}
+                  {owner.type === 'take_personal_loan' && (
+                    <>
+                      <Flex gap="1" align="center">
+                        <Text size="1" color="gray">
+                          Cash:
+                        </Text>
+                        <Badge size="1" variant="soft" color="green">
+                          {owner.cash.name} {fmtMoney(owner.cash.value)}
+                        </Badge>
+                      </Flex>
+                      <Flex gap="1" align="center">
+                        <Text size="1" color="gray">
+                          Payment:
+                        </Text>
+                        <Badge size="1" variant="soft" color="orange">
+                          {fmtMoney(owner.expense.amount)}/mo
+                        </Badge>
+                      </Flex>
+                    </>
+                  )}
+                </Flex>
+              )}
+            </Flex>
+          </Card>
+        );
+      })}
+
+      {archivedDerived.liabilities.length > 0 && (
+        <>
+          <Heading size="4" color="gray" mt="4">
+            Archived
+          </Heading>
+          {archivedDerived.liabilities.map((liability) => (
+            <Card key={liability.id} style={{ opacity: 0.6 }}>
+              <Flex justify="between" align="center">
+                <Flex align="center" gap="2">
+                  <Text size="3" weight="bold">
+                    {liability.name}
+                  </Text>
+                  <Badge
+                    size="1"
+                    color={liability.kind === 'mortgage' ? 'blue' : 'orange'}
+                  >
+                    {liability.kind === 'mortgage' ? 'Mortgage' : 'Loan'}
+                  </Badge>
+                  <Text size="2" color="gray">
+                    {fmtMoney(liability.value)}
+                  </Text>
+                </Flex>
+                <Flex gap="2">
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    onClick={() => setRestoreTarget(liability)}
+                  >
+                    <RotateCcw size={14} />
+                  </Button>
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="red"
+                    onClick={() => setDeleteTarget(liability)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </Flex>
+              </Flex>
+            </Card>
+          ))}
+        </>
       )}
 
-      <Dialog.Root open={loanDialogOpen} onOpenChange={setLoanDialogOpen}>
-        <Dialog.Content maxWidth="500px">
-          <Dialog.Title>{editingId ? 'Edit Loan' : 'Add Loan'}</Dialog.Title>
+      <Dialog.Root
+        open={mortgageDialogOpen}
+        onOpenChange={(open) => {
+          setMortgageDialogOpen(open);
+          if (!open) setEditingEventId(null);
+        }}
+      >
+        <Dialog.Content maxWidth="520px">
+          <Dialog.Title>
+            {editingEventId ? 'Edit Mortgage' : 'Take Mortgage'}
+          </Dialog.Title>
 
           <Flex direction="column" gap="3" mt="3">
-            <Flex gap="3">
-              <div style={{ flex: 2 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Name</span>
-                </Text>
-                <TextField.Root
-                  value={loanForm.name}
-                  onChange={(e) =>
-                    setLoanForm((f) => ({ ...f, name: e.target.value }))
-                  }
-                  placeholder="e.g. Home Mortgage"
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Loan Type</span>
-                </Text>
-                <Select.Root
-                  value={loanForm.loanType}
-                  onValueChange={(v) =>
-                    setLoanForm((f) => ({ ...f, loanType: v as LoanType }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    {LOAN_TYPES.map((t) => (
-                      <Select.Item key={t} value={t}>
-                        {LOAN_TYPE_LABELS[t]}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-            </Flex>
+            <div>
+              <Text size="2" weight="medium" mb="1" asChild>
+                <span>Name</span>
+              </Text>
+              <TextField.Root
+                value={mortgageForm.name}
+                onChange={(e) =>
+                  setMortgageForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="e.g. My Flat"
+              />
+            </div>
 
             <Flex gap="3">
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Original Amount</span>
+                  <span>Loan Value</span>
                 </Text>
                 <TextField.Root
                   type="number"
-                  value={loanForm.originalAmount || ''}
+                  value={mortgageForm.loanValue || ''}
                   onChange={(e) =>
-                    setLoanForm((f) => ({
+                    setMortgageForm((f) => ({
                       ...f,
-                      originalAmount: Number(e.target.value) || 0,
+                      loanValue: Number(e.target.value) || 0,
                     }))
                   }
                 />
               </div>
+              <div style={{ flex: 1 }}>
+                <Text size="2" weight="medium" mb="1" asChild>
+                  <span>Down Payment</span>
+                </Text>
+                <TextField.Root
+                  type="number"
+                  value={mortgageForm.downPayment || ''}
+                  onChange={(e) =>
+                    setMortgageForm((f) => ({
+                      ...f,
+                      downPayment: Number(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </div>
+            </Flex>
+
+            <Flex gap="3">
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
                   <span>Annual Rate (%)</span>
@@ -590,18 +695,32 @@ export default function LiabilitiesPage() {
                 <TextField.Root
                   type="number"
                   step="0.1"
-                  value={
-                    loanForm.interestRate
-                      ? (loanForm.interestRate * 100).toFixed(1)
-                      : ''
-                  }
+                  value={mortgageForm.interestRate}
                   onChange={(e) =>
-                    setLoanForm((f) => ({
+                    setMortgageForm((f) => ({
                       ...f,
-                      interestRate: (Number(e.target.value) || 0) / 100,
+                      interestRate: e.target.value,
                     }))
                   }
                 />
+              </div>
+              <div style={{ flex: 1 }}>
+                <Text size="2" weight="medium" mb="1" asChild>
+                  <span>Currency</span>
+                </Text>
+                <Select.Root
+                  value={mortgageForm.currency}
+                  onValueChange={(v) =>
+                    setMortgageForm((f) => ({ ...f, currency: v as Currency }))
+                  }
+                >
+                  <Select.Trigger style={{ width: '100%' }} />
+                  <Select.Content>
+                    <Select.Item value="CZK">CZK</Select.Item>
+                    <Select.Item value="EUR">EUR</Select.Item>
+                    <Select.Item value="USD">USD</Select.Item>
+                  </Select.Content>
+                </Select.Root>
               </div>
             </Flex>
 
@@ -612,27 +731,50 @@ export default function LiabilitiesPage() {
                 </Text>
                 <TextField.Root
                   type="date"
-                  value={loanForm.startDate}
+                  value={mortgageForm.startDate}
                   onChange={(e) =>
-                    setLoanForm((f) => ({ ...f, startDate: e.target.value }))
+                    setMortgageForm((f) => ({
+                      ...f,
+                      startDate: e.target.value,
+                    }))
                   }
                 />
               </div>
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>End Date</span>
+                  <span>Term (years)</span>
                 </Text>
                 <TextField.Root
-                  type="date"
-                  value={loanForm.endDate}
+                  type="number"
+                  value={mortgageForm.termYears || ''}
                   onChange={(e) =>
-                    setLoanForm((f) => ({ ...f, endDate: e.target.value }))
+                    setMortgageForm((f) => ({
+                      ...f,
+                      termYears: Number(e.target.value) || 0,
+                    }))
                   }
                 />
               </div>
             </Flex>
 
-            {computed && (
+            <div>
+              <Text size="2" weight="medium" mb="1" asChild>
+                <span>Flat Growth Rate (%/yr)</span>
+              </Text>
+              <TextField.Root
+                type="number"
+                step="0.1"
+                value={mortgageForm.growthRate}
+                onChange={(e) =>
+                  setMortgageForm((f) => ({
+                    ...f,
+                    growthRate: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            {mortgageMonthly > 0 && (
               <Card variant="surface">
                 <Flex gap="5">
                   <Flex direction="column">
@@ -640,123 +782,83 @@ export default function LiabilitiesPage() {
                       Monthly Payment
                     </Text>
                     <Text size="3" weight="bold">
-                      {formatMoney(computed.monthlyPayment, store.currency)}
+                      {fmtMoney({
+                        amount: Math.round(mortgageMonthly),
+                        currency: mortgageForm.currency,
+                      })}
                     </Text>
                   </Flex>
                   <Flex direction="column">
                     <Text size="1" color="gray">
-                      Current Balance
+                      Flat Value
                     </Text>
                     <Text size="3" weight="bold">
-                      {formatMoney(computed.currentBalance, store.currency)}
+                      {fmtMoney({
+                        amount:
+                          mortgageForm.loanValue + mortgageForm.downPayment,
+                        currency: mortgageForm.currency,
+                      })}
                     </Text>
                   </Flex>
                 </Flex>
               </Card>
             )}
 
-            {!editingId ? (
-              <Card variant="surface">
-                <Flex direction="column" gap="2">
+            <Card variant="surface">
+              <Flex direction="column" gap="2">
+                <Flex asChild gap="2" align="center">
                   <Text size="2" weight="bold">
-                    Asset
+                    <Checkbox
+                      checked={mortgageForm.rental}
+                      onCheckedChange={(c) =>
+                        setMortgageForm((f) => ({
+                          ...f,
+                          rental: c === true,
+                          rentalIncomeName:
+                            c === true && !f.rentalIncomeName
+                              ? `${f.name} Rent`
+                              : f.rentalIncomeName,
+                        }))
+                      }
+                    />
+                    Rental property
                   </Text>
-                  <Select.Root
-                    value={loanForm.linkedAssetId || '_new'}
-                    onValueChange={(v) =>
-                      setLoanForm((f) => ({
-                        ...f,
-                        linkedAssetId: v === '_new' ? '' : v,
-                      }))
-                    }
-                  >
-                    <Select.Trigger style={{ width: '100%' }} />
-                    <Select.Content>
-                      <Select.Item value="_new">+ Create New Asset</Select.Item>
-                      {store.assets.map((a) => (
-                        <Select.Item key={a.id} value={a.id}>
-                          {a.name}
-                        </Select.Item>
-                      ))}
-                    </Select.Content>
-                  </Select.Root>
-                  {!loanForm.linkedAssetId && (
-                    <Flex gap="3">
-                      <div style={{ flex: 2 }}>
-                        <Text size="1" weight="medium" asChild>
-                          <span>Name</span>
-                        </Text>
-                        <TextField.Root
-                          value={loanForm.assetName}
-                          onChange={(e) =>
-                            setLoanForm((f) => ({
-                              ...f,
-                              assetName: e.target.value,
-                            }))
-                          }
-                          placeholder="e.g. My Apartment"
-                        />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <Text size="1" weight="medium" asChild>
-                          <span>Type</span>
-                        </Text>
-                        <Select.Root
-                          value={loanForm.assetType}
-                          onValueChange={(v) =>
-                            setLoanForm((f) => ({
-                              ...f,
-                              assetType: v as AssetType,
-                            }))
-                          }
-                        >
-                          <Select.Trigger style={{ width: '100%' }} />
-                          <Select.Content>
-                            {ALL_ASSET_TYPES.map((t) => (
-                              <Select.Item key={t} value={t}>
-                                {ASSET_TYPE_LABELS[t]}
-                              </Select.Item>
-                            ))}
-                          </Select.Content>
-                        </Select.Root>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <Text size="1" weight="medium" asChild>
-                          <span>Value</span>
-                        </Text>
-                        <TextField.Root
-                          type="number"
-                          value={loanForm.assetValue || ''}
-                          onChange={(e) =>
-                            setLoanForm((f) => ({
-                              ...f,
-                              assetValue: Number(e.target.value) || 0,
-                            }))
-                          }
-                          placeholder={
-                            loanForm.originalAmount
-                              ? String(loanForm.originalAmount)
-                              : '0'
-                          }
-                        />
-                      </div>
-                    </Flex>
-                  )}
                 </Flex>
-              </Card>
-            ) : (
-              (() => {
-                const name = assetNameById(loanForm.linkedAssetId);
-                return name ? (
-                  <Flex gap="2" align="center">
-                    <Text size="2" color="gray">
-                      Linked to:
-                    </Text>
-                    <Badge size="1">{name}</Badge>
+                {mortgageForm.rental && (
+                  <Flex gap="3">
+                    <div style={{ flex: 1 }}>
+                      <Text size="1" weight="medium" asChild>
+                        <span>Income Name</span>
+                      </Text>
+                      <TextField.Root
+                        value={mortgageForm.rentalIncomeName}
+                        onChange={(e) =>
+                          setMortgageForm((f) => ({
+                            ...f,
+                            rentalIncomeName: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Text size="1" weight="medium" asChild>
+                        <span>Monthly Rent</span>
+                      </Text>
+                      <TextField.Root
+                        type="number"
+                        value={mortgageForm.rentalIncomeAmount || ''}
+                        onChange={(e) =>
+                          setMortgageForm((f) => ({
+                            ...f,
+                            rentalIncomeAmount: Number(e.target.value) || 0,
+                          }))
+                        }
+                      />
+                    </div>
                   </Flex>
-                ) : null;
-              })()
-            )}
+                )}
+              </Flex>
+            </Card>
           </Flex>
 
           <Flex gap="3" mt="4" justify="end">
@@ -765,20 +867,23 @@ export default function LiabilitiesPage() {
                 Cancel
               </Button>
             </Dialog.Close>
-            <Button onClick={handleSaveLoan} disabled={!computed}>
-              {editingId ? 'Save' : 'Add'}
+            <Button onClick={handleSaveMortgage}>
+              {editingEventId ? 'Save' : 'Take Mortgage'}
             </Button>
           </Flex>
         </Dialog.Content>
       </Dialog.Root>
 
       <Dialog.Root
-        open={recurringDialogOpen}
-        onOpenChange={setRecurringDialogOpen}
+        open={loanDialogOpen}
+        onOpenChange={(open) => {
+          setLoanDialogOpen(open);
+          if (!open) setEditingEventId(null);
+        }}
       >
-        <Dialog.Content maxWidth="450px">
+        <Dialog.Content maxWidth="520px">
           <Dialog.Title>
-            {editingId ? 'Edit Recurring Cost' : 'Add Recurring Cost'}
+            {editingEventId ? 'Edit Personal Loan' : 'Take Personal Loan'}
           </Dialog.Title>
 
           <Flex direction="column" gap="3" mt="3">
@@ -787,53 +892,45 @@ export default function LiabilitiesPage() {
                 <span>Name</span>
               </Text>
               <TextField.Root
-                value={recurringForm.name}
+                value={loanForm.name}
                 onChange={(e) =>
-                  setRecurringForm((f) => ({ ...f, name: e.target.value }))
+                  setLoanForm((f) => ({ ...f, name: e.target.value }))
                 }
-                placeholder="e.g. Property Tax"
+                placeholder="e.g. Car Loan"
               />
             </div>
 
             <Flex gap="3">
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Amount</span>
+                  <span>Loan Value</span>
                 </Text>
                 <TextField.Root
                   type="number"
-                  value={recurringForm.amount || ''}
+                  value={loanForm.loanValue || ''}
                   onChange={(e) =>
-                    setRecurringForm((f) => ({
+                    setLoanForm((f) => ({
                       ...f,
-                      amount: Number(e.target.value) || 0,
+                      loanValue: Number(e.target.value) || 0,
                     }))
                   }
-                  placeholder="0"
                 />
               </div>
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Frequency</span>
+                  <span>Currency</span>
                 </Text>
                 <Select.Root
-                  value={recurringForm.frequency}
+                  value={loanForm.currency}
                   onValueChange={(v) =>
-                    setRecurringForm((f) => ({
-                      ...f,
-                      frequency: v as Frequency,
-                    }))
+                    setLoanForm((f) => ({ ...f, currency: v as Currency }))
                   }
                 >
                   <Select.Trigger style={{ width: '100%' }} />
                   <Select.Content>
-                    {(['monthly', 'quarterly', 'annually'] as Frequency[]).map(
-                      (freq) => (
-                        <Select.Item key={freq} value={freq}>
-                          {FREQ_LABELS[freq]}
-                        </Select.Item>
-                      ),
-                    )}
+                    <Select.Item value="CZK">CZK</Select.Item>
+                    <Select.Item value="EUR">EUR</Select.Item>
+                    <Select.Item value="USD">USD</Select.Item>
                   </Select.Content>
                 </Select.Root>
               </div>
@@ -842,46 +939,62 @@ export default function LiabilitiesPage() {
             <Flex gap="3">
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Currency</span>
+                  <span>Annual Rate (%)</span>
                 </Text>
-                <Select.Root
-                  value={recurringForm.currency}
-                  onValueChange={(v) =>
-                    setRecurringForm((f) => ({ ...f, currency: v as Currency }))
+                <TextField.Root
+                  type="number"
+                  step="0.1"
+                  value={loanForm.interestRate}
+                  onChange={(e) =>
+                    setLoanForm((f) => ({ ...f, interestRate: e.target.value }))
                   }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="CZK">CZK</Select.Item>
-                    <Select.Item value="EUR">EUR</Select.Item>
-                  </Select.Content>
-                </Select.Root>
+                />
               </div>
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Linked Asset</span>
+                  <span>Term (years)</span>
                 </Text>
-                <Select.Root
-                  value={recurringForm.linkedAssetId || '_none'}
-                  onValueChange={(v) =>
-                    setRecurringForm((f) => ({
+                <TextField.Root
+                  type="number"
+                  value={loanForm.termYears || ''}
+                  onChange={(e) =>
+                    setLoanForm((f) => ({
                       ...f,
-                      linkedAssetId: v === '_none' ? '' : v,
+                      termYears: Number(e.target.value) || 0,
                     }))
                   }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="_none">None</Select.Item>
-                    {store.assets.map((a) => (
-                      <Select.Item key={a.id} value={a.id}>
-                        {a.name}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
+                />
               </div>
             </Flex>
+
+            <div>
+              <Text size="2" weight="medium" mb="1" asChild>
+                <span>Start Date</span>
+              </Text>
+              <TextField.Root
+                type="date"
+                value={loanForm.startDate}
+                onChange={(e) =>
+                  setLoanForm((f) => ({ ...f, startDate: e.target.value }))
+                }
+              />
+            </div>
+
+            {loanMonthly > 0 && (
+              <Card variant="surface">
+                <Flex direction="column">
+                  <Text size="1" color="gray">
+                    Monthly Payment
+                  </Text>
+                  <Text size="3" weight="bold">
+                    {fmtMoney({
+                      amount: Math.round(loanMonthly),
+                      currency: loanForm.currency,
+                    })}
+                  </Text>
+                </Flex>
+              </Card>
+            )}
           </Flex>
 
           <Flex gap="3" mt="4" justify="end">
@@ -890,12 +1003,62 @@ export default function LiabilitiesPage() {
                 Cancel
               </Button>
             </Dialog.Close>
-            <Button onClick={handleSaveRecurring}>
-              {editingId ? 'Save' : 'Add'}
+            <Button onClick={handleSaveLoan}>
+              {editingEventId ? 'Save' : 'Take Loan'}
             </Button>
           </Flex>
         </Dialog.Content>
       </Dialog.Root>
+
+      <AlertDialog.Root
+        open={!!archiveTarget}
+        onOpenChange={(open) => !open && setArchiveTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Archive Event</AlertDialog.Title>
+          <AlertDialog.Description>
+            Archiving <strong>{archiveTarget?.name}</strong> will also remove the
+            linked asset, expense, and any rental income. Continue?
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button color="red" onClick={handleArchive}>
+                Archive
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
+        open={!!restoreTarget}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Restore Event</AlertDialog.Title>
+          <AlertDialog.Description>
+            This will restore:{' '}
+            <strong>
+              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
+            </strong>
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button onClick={handleRestore}>Restore</Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
 
       <AlertDialog.Root
         open={!!deleteTarget}
@@ -904,9 +1067,8 @@ export default function LiabilitiesPage() {
         <AlertDialog.Content maxWidth="400px">
           <AlertDialog.Title>Delete Liability</AlertDialog.Title>
           <AlertDialog.Description>
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget?.name}</strong>? The linked expense will also
-            be removed.
+            Permanently delete <strong>{deleteTarget?.name}</strong> and all
+            linked entities? This cannot be undone.
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Cancel>

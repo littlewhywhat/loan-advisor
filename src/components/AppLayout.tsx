@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useFinance } from '@/context/FinanceProvider';
+import { useEvents } from '@/context/EventProvider';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -40,7 +40,7 @@ function useIsMobile() {
 }
 
 function ModeToggle() {
-  const { mode, setMode } = useFinance();
+  const { mode, setMode } = useEvents();
   const isDev = mode === 'dev';
   return (
     <Badge
