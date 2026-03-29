@@ -4,14 +4,42 @@ Feature: Simulator
 
   Scenario: Configure simulation parameters
     Given the simulator header shows:
-      | setting                  | default       |
-      | target_month             | current month |
-      | target_year              | current + 20  |
-      | cash_reserve_growth_rate | 0%            |
+      | section          | setting                  | default       |
+      | Projection Range | target_month             | current month |
+      | Projection Range | target_year              | current + 20  |
+      | Projection Range | cash_reserve_growth_rate | 0%            |
+      | View Snapshot    | month                    | target_month  |
+      | View Snapshot    | year                     | target_year   |
     When the user changes target_year to 2036
     And the user changes target_month to 6
     And the user changes cash_reserve_growth_rate to 2%
     Then the simulation reruns from today to June 2036 with the new parameters
+
+  Scenario: View snapshot shows income statement and balance sheet for selected month
+    Given an active AddIncome event:
+      | name   | amount | currency | frequency |
+      | Salary | 80000  | CZK      | monthly   |
+    And an active AddExpense event:
+      | name      | amount | currency | frequency |
+      | Groceries | 20000  | CZK      | monthly   |
+    And an active AddAsset event:
+      | name    | kind | value   | currency | growth_rate |
+      | Savings | cash | 1000000 | CZK      | 6.0         |
+    When the user sets view snapshot to month 6, year 2030
+    Then the income statement shows each income with its monthly amount
+    And the income statement shows each expense with its monthly amount
+    And the income statement shows total income, total expenses, and cash flow
+    And the balance sheet shows each asset with its projected value
+    And the balance sheet shows the cash reserve as a line item
+    And the balance sheet shows each liability with its remaining balance
+    And the balance sheet shows the accumulated deficit if any
+    And the balance sheet shows net worth
+    And all charts display a reference line at the selected month
+
+  Scenario: View snapshot outside simulation range shows warning
+    Given a simulation running from today to December 2040
+    When the user sets view snapshot to month 1, year 2050
+    Then a warning is shown that the date is outside the simulation range
 
   Rule: Assets grow by their growth rate compounded monthly
 
@@ -82,7 +110,8 @@ Feature: Simulator
       | 5000000    | 1000000      | 5.5           | 2026-04-01 | 30         | 3.0         | false  |
     When the simulator runs for 360 months
     Then the mortgage balance at month 360 is 0
-    And the mortgage expense is excluded from month 361 onward
+    And the mortgage expense is excluded from total expenses from month 361 onward
+    And the mortgage expense appears struck through in the snapshot income statement
 
   Rule: Net worth = total assets + cash reserve - total liabilities - accumulated deficit
 
