@@ -251,6 +251,52 @@ describe('deriveState', () => {
       expect(state.incomes[0].name).toBe('Salary');
     });
 
+    it('patches mortgage interest rate and flat value', () => {
+      const correction: ManualCorrectionEvent = {
+        id: 'evt-corr',
+        date: '2026-05-01',
+        status: 'active',
+        type: 'manual_correction',
+        changes: {
+          liabilities: {
+            'mort-1': { interestRate: 4.5, value: { amount: 4_800_000 } },
+          },
+          assets: {
+            'flat-1': { value: { amount: 7_000_000 } },
+          },
+        },
+      };
+      const state = deriveState([mortgage, correction]);
+      expect(state.liabilities).toHaveLength(1);
+      const m = state.liabilities[0];
+      expect(m.interestRate).toBe(4.5);
+      expect(m.value.amount).toBe(4_800_000);
+      expect(m.value.currency).toBe('CZK');
+      expect(m.name).toBe('My Flat');
+      expect(state.assets).toHaveLength(1);
+      expect(state.assets[0].value.amount).toBe(7_000_000);
+      expect(state.assets[0].value.currency).toBe('CZK');
+    });
+
+    it('patches mortgage expense while keeping other mortgage entities intact', () => {
+      const correction: ManualCorrectionEvent = {
+        id: 'evt-corr',
+        date: '2026-05-01',
+        status: 'active',
+        type: 'manual_correction',
+        changes: {
+          expenses: {
+            'exp-2': { amount: { amount: 18_000 } },
+          },
+        },
+      };
+      const state = deriveState([rentalMortgage, correction]);
+      expect(state.expenses[0].amount.amount).toBe(18_000);
+      expect(state.expenses[0].amount.currency).toBe('CZK');
+      expect(state.liabilities[0].value.amount).toBe(3_000_000);
+      expect(state.incomes[0].amount.amount).toBe(15_000);
+    });
+
     it('patches an expense frequency', () => {
       const correction: ManualCorrectionEvent = {
         id: 'evt-corr',
