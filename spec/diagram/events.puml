@@ -32,12 +32,19 @@ entity ManualCorrection {
   * changes : jsonb
 }
 
+entity RepayLoan {
+  * liabilityId : uuid <<FK>>
+  * repaymentAmount : MoneyAmount
+  * strategy : reduce_payment | reduce_term
+}
+
 Event <|-- TakeMortgage
 Event <|-- TakePersonalLoan
 Event <|-- AddAsset
 Event <|-- AddIncome
 Event <|-- AddExpense
 Event <|-- ManualCorrection
+Event <|-- RepayLoan
 
 TakeMortgage "1" *-- "1" Mortgage
 TakeMortgage "1" *-- "1" Flat
@@ -52,5 +59,7 @@ AddAsset "1" *-- "1" Asset
 
 AddIncome "1" *-- "1" Income
 AddExpense "1" *-- "1" Expense
+
+RepayLoan "1" --> "1" Liability : targets
 
 @enduml
