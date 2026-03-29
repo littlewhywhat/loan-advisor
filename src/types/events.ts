@@ -54,6 +54,7 @@ type EventBase = {
   id: string;
   date: string;
   status: EventStatus;
+  createdAt?: string;
 };
 
 type TakeMortgageBase = EventBase & {

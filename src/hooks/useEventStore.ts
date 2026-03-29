@@ -62,10 +62,11 @@ export function useEventStore() {
 
   const addEvent = (event: NewEventInput): string => {
     const id = uid();
+    const createdAt = new Date().toISOString();
     setStore((prev) => ({
       events: [
         ...prev.events,
-        { ...event, id, status: 'active' } as FinanceEvent,
+        { ...event, id, status: 'active', createdAt } as FinanceEvent,
       ],
     }));
     return id;

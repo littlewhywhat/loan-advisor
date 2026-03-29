@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { useEvents } from '@/context/EventProvider';
 import {
   findOwnerEvent,
+  isEventEditable,
   isStandaloneExpense,
   isStandaloneIncome,
   todayStr,
@@ -154,6 +155,7 @@ function IncomeSection() {
       {derived.incomes.map((income) => {
         const standalone = isStandaloneIncome(events, income.id);
         const owner = findOwnerEvent(events, income.id);
+        const editable = standalone && owner && isEventEditable(owner);
         return (
           <Card key={income.id}>
             <Flex justify="between" align="center">
@@ -192,7 +194,7 @@ function IncomeSection() {
                   )}
                 </Flex>
               </Flex>
-              {standalone && (
+              {editable && (
                 <Flex gap="2">
                   <Button
                     size="1"
@@ -412,6 +414,7 @@ function ExpenseSection() {
       {derived.expenses.map((expense) => {
         const standalone = isStandaloneExpense(events, expense.id);
         const owner = findOwnerEvent(events, expense.id);
+        const editable = standalone && owner && isEventEditable(owner);
         return (
           <Card key={expense.id}>
             <Flex justify="between" align="center">
@@ -450,7 +453,7 @@ function ExpenseSection() {
                   )}
                 </Flex>
               </Flex>
-              {standalone && (
+              {editable && (
                 <Flex gap="2">
                   <Button
                     size="1"

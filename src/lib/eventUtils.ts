@@ -50,3 +50,10 @@ export function isStandaloneExpense(
 export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+const EDIT_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+export function isEventEditable(event: FinanceEvent): boolean {
+  if (!event.createdAt) return false;
+  return Date.now() - new Date(event.createdAt).getTime() < EDIT_WINDOW_MS;
+}
