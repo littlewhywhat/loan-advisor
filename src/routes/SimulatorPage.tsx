@@ -382,7 +382,7 @@ function findSnapshotIndex(
 }
 
 export default function SimulatorPage() {
-  const { events, addEvent, mode } = useEvents();
+  const { events, derived, addEvent, mode } = useEvents();
   const {
     strategy,
     addStrategyEvent,
@@ -531,6 +531,8 @@ export default function SimulatorPage() {
 
       <StrategyPanel
         strategy={strategy}
+        events={events}
+        liabilities={derived.liabilities}
         onAddEvent={addStrategyEvent}
         onRemoveEvent={removeStrategyEvent}
         onApply={handleApply}

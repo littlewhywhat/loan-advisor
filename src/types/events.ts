@@ -95,13 +95,28 @@ export type ManualCorrectionEvent = EventBase & {
   changes: Record<string, unknown>;
 };
 
+export type RepayLoanStrategy = 'reduce_payment' | 'reduce_term';
+
+export type RepayLoanEvent = EventBase & {
+  type: 'repay_loan';
+  liabilityId: string;
+  expenseId: string;
+  repaymentAmount: MoneyAmount;
+  strategy: RepayLoanStrategy;
+  newPrincipal: MoneyAmount;
+  newStartDate: string;
+  newEndDate: string;
+  newMonthlyPayment: MoneyAmount;
+};
+
 export type FinanceEvent =
   | TakeMortgageEvent
   | TakePersonalLoanEvent
   | AddAssetEvent
   | AddIncomeEvent
   | AddExpenseEvent
-  | ManualCorrectionEvent;
+  | ManualCorrectionEvent
+  | RepayLoanEvent;
 
 type DistributiveOmit<T, K extends keyof never> = T extends unknown
   ? Omit<T, K>

@@ -263,6 +263,22 @@ function injectEvent(
       });
       break;
     }
+    case 'repay_loan': {
+      const liability = state.liabilityStates.find((l) => l.id === event.liabilityId);
+      if (liability) {
+        liability.balance = event.newPrincipal.amount;
+        liability.monthlyPayment = event.newMonthlyPayment.amount;
+        if (liability.balance <= 0) {
+          liability.paidOff = true;
+          if (liability.linkedExpenseId) state.paidOffExpenseIds.add(liability.linkedExpenseId);
+        }
+      }
+      const expense = state.expenseItems.find((e) => e.id === event.expenseId);
+      if (expense) {
+        expense.monthlyAmount = event.newMonthlyPayment.amount;
+      }
+      break;
+    }
     case 'manual_correction':
       break;
   }
@@ -446,6 +462,7 @@ function collectEntityIds(event: FinanceEvent): string[] {
       return ids;
     }
     case 'take_personal_loan': return [event.loan.id, event.cash.id, event.expense.id];
+    case 'repay_loan': return [];
     case 'manual_correction': return [];
   }
 }

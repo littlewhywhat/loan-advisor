@@ -18,6 +18,7 @@ import {
   buildAddAssetInput,
   buildAddExpenseInput,
   buildAddIncomeInput,
+  buildRepayLoanInput,
   buildTakeMortgageInput,
   buildTakePersonalLoanInput,
   describeEvent,
@@ -26,19 +27,25 @@ import {
   emptyIncomeForm,
   emptyMortgageForm,
   emptyPersonalLoanForm,
+  emptyRepayLoanForm,
   EVENT_TYPES,
   type AssetFormData,
   type ExpenseFormData,
   type IncomeFormData,
   type MortgageFormData,
   type PersonalLoanFormData,
+  type RepayLoanFormData,
   type StrategyEventType,
 } from '@/lib/eventBuilders';
-import { fmtMoney } from '@/lib/format';
-import type { Asset, Currency, Frequency, NewEventInput, Strategy } from '@/types/events';
+import { fmtMoney, formatMoney } from '@/lib/format';
+import { findOwnerEvent } from '@/lib/eventUtils';
+import { computeLoanDerived } from '@/lib/loanCalc';
+import type { Asset, Currency, FinanceEvent, Frequency, Liability, NewEventInput, RepayLoanStrategy, Strategy } from '@/types/events';
 
 type Props = {
   strategy: Strategy;
+  events: FinanceEvent[];
+  liabilities: Liability[];
   onAddEvent: (event: NewEventInput) => void;
   onRemoveEvent: (index: number) => void;
   onApply: () => void;
@@ -476,15 +483,118 @@ function PersonalLoanFields({
   );
 }
 
+function RepayLoanFields({
+  form,
+  onChange,
+  date,
+  onDateChange,
+  liabilities,
+  events,
+}: {
+  form: RepayLoanFormData;
+  onChange: (f: RepayLoanFormData) => void;
+  date: string;
+  onDateChange: (d: string) => void;
+  liabilities: Liability[];
+  events: FinanceEvent[];
+}) {
+  const handleLiabilityChange = (liabilityId: string) => {
+    const liability = liabilities.find((l) => l.id === liabilityId);
+    if (!liability) return;
+    const owner = findOwnerEvent(events, liabilityId);
+    let expenseId = '';
+    if (owner?.type === 'take_mortgage') expenseId = owner.expense.id;
+    if (owner?.type === 'take_personal_loan') expenseId = owner.expense.id;
+    onChange({
+      ...form,
+      liabilityId,
+      expenseId,
+      currency: liability.value.currency,
+      originalPrincipal: liability.value.amount,
+      interestRate: liability.interestRate,
+      loanStartDate: liability.startDate,
+      loanEndDate: liability.endDate,
+    });
+  };
+
+  const preview = useMemo(() => {
+    if (!form.liabilityId || form.repaymentAmount <= 0 || !date) return null;
+    const { currentBalance } = computeLoanDerived(
+      form.originalPrincipal,
+      form.interestRate,
+      form.loanStartDate,
+      form.loanEndDate,
+    );
+    return { currentBalance };
+  }, [form.liabilityId, form.originalPrincipal, form.interestRate, form.loanStartDate, form.loanEndDate, form.repaymentAmount, date]);
+
+  return (
+    <>
+      <div>
+        <Text size="2" weight="medium" mb="1" asChild><span>Liability</span></Text>
+        <Select.Root value={form.liabilityId} onValueChange={handleLiabilityChange}>
+          <Select.Trigger style={{ width: '100%' }} placeholder="Select a loan..." />
+          <Select.Content>
+            {liabilities.map((l) => (
+              <Select.Item key={l.id} value={l.id}>{l.name}</Select.Item>
+            ))}
+          </Select.Content>
+        </Select.Root>
+      </div>
+      <Flex gap="3">
+        <div style={{ flex: 1 }}>
+          <Text size="2" weight="medium" mb="1" asChild><span>Repayment Amount</span></Text>
+          <TextField.Root
+            type="number"
+            value={form.repaymentAmount || ''}
+            onChange={(e) => onChange({ ...form, repaymentAmount: Number(e.target.value) || 0 })}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
+          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+        </div>
+      </Flex>
+      <Flex gap="3">
+        <div style={{ flex: 1 }}>
+          <Text size="2" weight="medium" mb="1" asChild><span>Strategy</span></Text>
+          <Select.Root value={form.strategy} onValueChange={(v) => onChange({ ...form, strategy: v as RepayLoanStrategy })}>
+            <Select.Trigger style={{ width: '100%' }} />
+            <Select.Content>
+              <Select.Item value="reduce_payment">Reduce Payment</Select.Item>
+              <Select.Item value="reduce_term">Reduce Term</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        </div>
+        <div style={{ flex: 1 }}>
+          <Text size="2" weight="medium" mb="1" asChild><span>Date</span></Text>
+          <TextField.Root type="date" value={date} onChange={(e) => onDateChange(e.target.value)} />
+        </div>
+      </Flex>
+      {preview && (
+        <Card variant="surface">
+          <Flex direction="column">
+            <Text size="1" color="gray">Current Balance</Text>
+            <Text size="3" weight="bold">
+              {formatMoney(preview.currentBalance, form.currency)}
+            </Text>
+          </Flex>
+        </Card>
+      )}
+    </>
+  );
+}
+
 const TYPE_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange' | 'purple'> = {
   Income: 'green',
   Expense: 'red',
   Asset: 'blue',
   Mortgage: 'orange',
   Loan: 'purple',
+  'Repay Loan': 'purple',
 };
 
-export default function StrategyPanel({ strategy, onAddEvent, onRemoveEvent, onApply, onDiscard }: Props) {
+export default function StrategyPanel({ strategy, events, liabilities, onAddEvent, onRemoveEvent, onApply, onDiscard }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [eventType, setEventType] = useState<StrategyEventType>('add_income');
   const [date, setDate] = useState(todayStr);
@@ -493,6 +603,7 @@ export default function StrategyPanel({ strategy, onAddEvent, onRemoveEvent, onA
   const [assetForm, setAssetForm] = useState(emptyAssetForm);
   const [mortgageForm, setMortgageForm] = useState(emptyMortgageForm);
   const [loanForm, setLoanForm] = useState(emptyPersonalLoanForm);
+  const [repayForm, setRepayForm] = useState(emptyRepayLoanForm);
   const [applyOpen, setApplyOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
 
@@ -503,6 +614,7 @@ export default function StrategyPanel({ strategy, onAddEvent, onRemoveEvent, onA
     setAssetForm(emptyAssetForm());
     setMortgageForm(emptyMortgageForm());
     setLoanForm(emptyPersonalLoanForm());
+    setRepayForm(emptyRepayLoanForm());
   };
 
   const handleSave = () => {
@@ -527,6 +639,10 @@ export default function StrategyPanel({ strategy, onAddEvent, onRemoveEvent, onA
       case 'take_personal_loan':
         if (!loanForm.name.trim() || loanForm.loanValue <= 0) return;
         input = buildTakePersonalLoanInput(loanForm);
+        break;
+      case 'repay_loan':
+        if (!repayForm.liabilityId || repayForm.repaymentAmount <= 0) return;
+        input = buildRepayLoanInput(repayForm, date);
         break;
     }
     if (input) {
@@ -630,6 +746,16 @@ export default function StrategyPanel({ strategy, onAddEvent, onRemoveEvent, onA
             )}
             {eventType === 'take_personal_loan' && (
               <PersonalLoanFields form={loanForm} onChange={setLoanForm} />
+            )}
+            {eventType === 'repay_loan' && (
+              <RepayLoanFields
+                form={repayForm}
+                onChange={setRepayForm}
+                date={date}
+                onDateChange={setDate}
+                liabilities={liabilities}
+                events={events}
+              />
             )}
           </Flex>
 

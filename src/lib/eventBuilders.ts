@@ -1,10 +1,11 @@
-import { monthlyPayment } from '@/lib/loanCalc';
+import { monthlyPayment, monthlyPaymentFromMonths, monthsBetween, remainingBalance } from '@/lib/loanCalc';
 import { formatMoney, toMonthly } from '@/lib/format';
 import type {
   Asset,
   Currency,
   Frequency,
   NewEventInput,
+  RepayLoanStrategy,
 } from '@/types/events';
 
 export type IncomeFormData = {
@@ -52,8 +53,35 @@ export type PersonalLoanFormData = {
   termYears: number;
 };
 
+export type RepayLoanFormData = {
+  liabilityId: string;
+  expenseId: string;
+  repaymentAmount: number;
+  currency: Currency;
+  strategy: RepayLoanStrategy;
+  originalPrincipal: number;
+  interestRate: number;
+  loanStartDate: string;
+  loanEndDate: string;
+};
+
 function uid(): string {
   return crypto.randomUUID();
+}
+
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+function monthsToPayoff(principal: number, annualRate: number, payment: number): number {
+  if (principal <= 0) return 0;
+  const r = annualRate / 12;
+  if (r === 0) return Math.ceil(principal / payment);
+  const ratio = 1 - (principal * r) / payment;
+  if (ratio <= 0) return Infinity;
+  return Math.ceil(-Math.log(ratio) / Math.log(1 + r));
 }
 
 function addYears(dateStr: string, years: number): string {
@@ -187,12 +215,51 @@ export function buildTakePersonalLoanInput(form: PersonalLoanFormData): NewEvent
   };
 }
 
+export function buildRepayLoanInput(form: RepayLoanFormData, date: string): NewEventInput {
+  const currency = form.currency;
+  const totalMonths = monthsBetween(form.loanStartDate, form.loanEndDate);
+  const mp = monthlyPaymentFromMonths(form.originalPrincipal, form.interestRate, totalMonths);
+  const elapsed = monthsBetween(form.loanStartDate, date);
+  const currentBalance = remainingBalance(form.originalPrincipal, form.interestRate, mp, elapsed);
+  const newPrincipalAmount = Math.max(0, Math.round(currentBalance - form.repaymentAmount));
+
+  let newEndDate: string;
+  let newMp: number;
+
+  if (newPrincipalAmount <= 0) {
+    newEndDate = date;
+    newMp = 0;
+  } else if (form.strategy === 'reduce_payment') {
+    newEndDate = form.loanEndDate;
+    const remainingMonths = monthsBetween(date, form.loanEndDate);
+    newMp = Math.round(monthlyPaymentFromMonths(newPrincipalAmount, form.interestRate, remainingMonths));
+  } else {
+    newMp = Math.round(mp);
+    const n = monthsToPayoff(newPrincipalAmount, form.interestRate, newMp);
+    newEndDate = addMonths(date, n);
+  }
+
+  return {
+    type: 'repay_loan',
+    date,
+    liabilityId: form.liabilityId,
+    expenseId: form.expenseId,
+    repaymentAmount: { amount: form.repaymentAmount, currency },
+    strategy: form.strategy,
+    newPrincipal: { amount: newPrincipalAmount, currency },
+    newStartDate: date,
+    newEndDate,
+    newMonthlyPayment: { amount: newMp, currency },
+  };
+}
+
 const TYPE_LABELS: Record<string, string> = {
   add_income: 'Income',
   add_expense: 'Expense',
   add_asset: 'Asset',
   take_mortgage: 'Mortgage',
   take_personal_loan: 'Loan',
+  repay_loan: 'Repay Loan',
 };
 
 export function describeEvent(input: NewEventInput): {
@@ -238,6 +305,13 @@ export function describeEvent(input: NewEventInput): {
         detail: `${formatMoney(input.loan.value.amount, input.loan.value.currency)}`,
         date: input.date,
       };
+    case 'repay_loan':
+      return {
+        typeLabel,
+        name: `Repay ${formatMoney(input.repaymentAmount.amount, input.repaymentAmount.currency)}`,
+        detail: input.strategy === 'reduce_payment' ? 'lower payment' : 'shorter term',
+        date: input.date,
+      };
     case 'manual_correction':
       return { typeLabel: 'Correction', name: '', detail: '', date: input.date };
   }
@@ -249,6 +323,7 @@ export const EVENT_TYPES = [
   { value: 'add_asset', label: 'Add Asset' },
   { value: 'take_mortgage', label: 'Take Mortgage' },
   { value: 'take_personal_loan', label: 'Take Personal Loan' },
+  { value: 'repay_loan', label: 'Repay Loan' },
 ] as const;
 
 export type StrategyEventType = (typeof EVENT_TYPES)[number]['value'];
@@ -289,5 +364,19 @@ export function emptyPersonalLoanForm(): PersonalLoanFormData {
     currency: 'CZK',
     startDate: new Date().toISOString().slice(0, 10),
     termYears: 5,
+  };
+}
+
+export function emptyRepayLoanForm(): RepayLoanFormData {
+  return {
+    liabilityId: '',
+    expenseId: '',
+    repaymentAmount: 0,
+    currency: 'CZK',
+    strategy: 'reduce_payment',
+    originalPrincipal: 0,
+    interestRate: 0,
+    loanStartDate: '',
+    loanEndDate: '',
   };
 }

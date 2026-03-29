@@ -21,6 +21,8 @@ function ownsEntity(e: FinanceEvent, entityId: string): boolean {
       return e.income.id === entityId;
     case 'add_expense':
       return e.expense.id === entityId;
+    case 'repay_loan':
+      return false;
     case 'manual_correction':
       return false;
   }
@@ -72,6 +74,8 @@ export function ownedEntityNames(event: FinanceEvent): string[] {
       return [event.income.name];
     case 'add_expense':
       return [event.expense.name];
+    case 'repay_loan':
+      return [];
     case 'manual_correction':
       return [];
   }

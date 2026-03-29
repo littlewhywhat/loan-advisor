@@ -48,6 +48,19 @@ export function deriveState(
         expenses.push(event.expense);
         break;
       }
+      case 'repay_loan': {
+        const liability = liabilities.find((l) => l.id === event.liabilityId);
+        if (liability) {
+          liability.value = event.newPrincipal;
+          liability.startDate = event.newStartDate;
+          liability.endDate = event.newEndDate;
+        }
+        const expense = expenses.find((e) => e.id === event.expenseId);
+        if (expense) {
+          expense.amount = event.newMonthlyPayment;
+        }
+        break;
+      }
       case 'manual_correction': {
         applyCorrection(event.changes, {
           assets,
