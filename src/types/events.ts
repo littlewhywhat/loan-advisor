@@ -96,6 +96,12 @@ export type FinanceEvent =
   | AddExpenseEvent
   | ManualCorrectionEvent;
 
+type DistributiveOmit<T, K extends keyof never> = T extends unknown
+  ? Omit<T, K>
+  : never;
+
+export type NewEventInput = DistributiveOmit<FinanceEvent, 'id' | 'status'>;
+
 export type EventStore = {
   events: FinanceEvent[];
 };

@@ -4,6 +4,7 @@ import type {
   DerivedState,
   EventStore,
   FinanceEvent,
+  NewEventInput,
 } from '@/types/events';
 
 const MODE_KEY = 'finance-mode';
@@ -59,9 +60,7 @@ export function useEventStore() {
     setStore(loadStore(next));
   };
 
-  const addEvent = (
-    event: Omit<FinanceEvent, 'id' | 'status'>,
-  ): string => {
+  const addEvent = (event: NewEventInput): string => {
     const id = uid();
     setStore((prev) => ({
       events: [
@@ -86,6 +85,14 @@ export function useEventStore() {
       ),
     }));
 
+  const updateEvent = (
+    id: string,
+    updater: (event: FinanceEvent) => FinanceEvent,
+  ) =>
+    setStore((prev) => ({
+      events: prev.events.map((e) => (e.id === id ? updater(e) : e)),
+    }));
+
   const deleteEvent = (id: string) =>
     setStore((prev) => ({
       events: prev.events.filter((e) => e.id !== id),
@@ -97,6 +104,7 @@ export function useEventStore() {
     mode,
     setMode,
     addEvent,
+    updateEvent,
     archiveEvent,
     restoreEvent,
     deleteEvent,

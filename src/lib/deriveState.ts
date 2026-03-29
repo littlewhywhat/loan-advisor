@@ -41,7 +41,12 @@ export function deriveState(events: FinanceEvent[]): DerivedState {
         break;
       }
       case 'manual_correction': {
-        applyCorrection(event.changes, { assets, liabilities, incomes, expenses });
+        applyCorrection(event.changes, {
+          assets,
+          liabilities,
+          incomes,
+          expenses,
+        });
         break;
       }
     }

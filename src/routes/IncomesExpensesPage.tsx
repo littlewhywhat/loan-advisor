@@ -3,7 +3,6 @@ import {
   Badge,
   Button,
   Card,
-  Checkbox,
   Dialog,
   Flex,
   Heading,
@@ -14,49 +13,22 @@ import {
 } from '@radix-ui/themes';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useFinance } from '@/context/FinanceProvider';
-import { formatMoney, toMonthly } from '@/lib/format';
+import { useEvents } from '@/context/EventProvider';
+import {
+  findOwnerEvent,
+  isStandaloneExpense,
+  isStandaloneIncome,
+  todayStr,
+} from '@/lib/eventUtils';
+import { fmtMoney, toMonthly } from '@/lib/format';
 import type {
+  AddExpenseEvent,
+  AddIncomeEvent,
   Currency,
   Expense,
-  ExpenseCategory,
-  ExpenseInput,
   Frequency,
   Income,
-  IncomeInput,
-  IncomeType,
-} from '@/types/finance';
-
-const INCOME_TYPES: IncomeType[] = ['salary', 'rental', 'dividends'];
-const INCOME_TYPE_LABELS: Record<IncomeType, string> = {
-  salary: 'Salary',
-  rental: 'Rental',
-  dividends: 'Dividends',
-};
-const INCOME_TYPE_COLORS: Record<IncomeType, 'blue' | 'green' | 'purple'> = {
-  salary: 'blue',
-  rental: 'green',
-  dividends: 'purple',
-};
-
-const EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  'living_expense',
-  'liability',
-  'ownership',
-];
-const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  living_expense: 'Living Expense',
-  liability: 'Debt Service',
-  ownership: 'Ownership Cost',
-};
-const EXPENSE_CATEGORY_COLORS: Record<
-  ExpenseCategory,
-  'gray' | 'red' | 'orange'
-> = {
-  living_expense: 'gray',
-  liability: 'red',
-  ownership: 'orange',
-};
+} from '@/types/events';
 
 const FREQUENCIES: Frequency[] = ['monthly', 'quarterly', 'annually'];
 const FREQ_LABELS: Record<Frequency, string> = {
@@ -65,141 +37,101 @@ const FREQ_LABELS: Record<Frequency, string> = {
   annually: 'Annually',
 };
 
-function emptyIncomeForm(): IncomeInput {
-  return {
-    name: '',
-    type: 'salary',
-    amount: 0,
-    frequency: 'monthly',
-    isPassive: false,
-    currency: 'CZK',
-    linkedAssetId: null,
-  };
+type IncomeForm = {
+  name: string;
+  amount: number;
+  currency: Currency;
+  frequency: Frequency;
+};
+type ExpenseForm = {
+  name: string;
+  amount: number;
+  currency: Currency;
+  frequency: Frequency;
+};
+
+function emptyIncomeForm(): IncomeForm {
+  return { name: '', amount: 0, currency: 'CZK', frequency: 'monthly' };
 }
 
-function incomeToForm(i: Income): IncomeInput {
+function incomeToForm(i: Income): IncomeForm {
   return {
     name: i.name,
-    type: i.type,
-    amount: i.amount,
+    amount: i.amount.amount,
+    currency: i.amount.currency,
     frequency: i.frequency,
-    isPassive: i.isPassive,
-    currency: i.currency,
-    linkedAssetId: i.linkedAssetId,
   };
 }
 
-function emptyExpenseForm(): ExpenseInput {
-  return {
-    name: '',
-    category: 'living_expense',
-    amount: 0,
-    frequency: 'monthly',
-    isEssential: false,
-    currency: 'CZK',
-    linkedLiabilityId: null,
-  };
+function emptyExpenseForm(): ExpenseForm {
+  return { name: '', amount: 0, currency: 'CZK', frequency: 'monthly' };
 }
 
-function expenseToForm(e: Expense): ExpenseInput {
+function expenseToForm(e: Expense): ExpenseForm {
   return {
     name: e.name,
-    category: e.category,
-    amount: e.amount,
+    amount: e.amount.amount,
+    currency: e.amount.currency,
     frequency: e.frequency,
-    isEssential: e.isEssential,
-    currency: e.currency,
-    linkedLiabilityId: e.linkedLiabilityId,
   };
-}
-
-function frequencyMultiplier(freq: Frequency): number {
-  if (freq === 'monthly') return 12;
-  if (freq === 'quarterly') return 4;
-  return 1;
 }
 
 function IncomeSection() {
-  const { store, addIncome, updateIncome, removeIncome } = useFinance();
+  const { events, derived, addEvent, updateEvent, archiveEvent } = useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<IncomeInput>(emptyIncomeForm);
-  const [yieldPct, setYieldPct] = useState<string>('');
+  const [form, setForm] = useState<IncomeForm>(emptyIncomeForm);
   const [deleteTarget, setDeleteTarget] = useState<Income | null>(null);
 
   const openAdd = () => {
     setEditingId(null);
     setForm(emptyIncomeForm());
-    setYieldPct('');
     setDialogOpen(true);
   };
 
   const openEdit = (income: Income) => {
     setEditingId(income.id);
-    const f = incomeToForm(income);
-    setForm(f);
-    if (f.linkedAssetId) {
-      const asset = store.assets.find((a) => a.id === f.linkedAssetId);
-      if (asset && asset.value > 0) {
-        const annualIncome = f.amount * frequencyMultiplier(f.frequency);
-        setYieldPct(((annualIncome / asset.value) * 100).toFixed(2));
-      } else {
-        setYieldPct('');
-      }
-    } else {
-      setYieldPct('');
-    }
+    setForm(incomeToForm(income));
     setDialogOpen(true);
-  };
-
-  const handleAssetChange = (assetId: string, currentForm: IncomeInput) => {
-    const next = {
-      ...currentForm,
-      linkedAssetId: assetId === '_none' ? null : assetId,
-    };
-    setForm(next);
-    if (next.linkedAssetId) {
-      const asset = store.assets.find((a) => a.id === next.linkedAssetId);
-      if (asset && asset.value > 0 && next.amount > 0) {
-        const annualIncome = next.amount * frequencyMultiplier(next.frequency);
-        setYieldPct(((annualIncome / asset.value) * 100).toFixed(2));
-      }
-    } else {
-      setYieldPct('');
-    }
-  };
-
-  const handleYieldChange = (pctStr: string) => {
-    setYieldPct(pctStr);
-    const pct = Number.parseFloat(pctStr);
-    if (Number.isNaN(pct) || !form.linkedAssetId) return;
-    const asset = store.assets.find((a) => a.id === form.linkedAssetId);
-    if (!asset || asset.value <= 0) return;
-    const annualIncome = asset.value * (pct / 100);
-    const amount = Math.round(
-      annualIncome / frequencyMultiplier(form.frequency),
-    );
-    setForm((f) => ({ ...f, amount }));
   };
 
   const handleSave = () => {
     if (!form.name.trim()) return;
+    const incomeData: Income = {
+      id: editingId ?? crypto.randomUUID(),
+      name: form.name,
+      amount: { amount: form.amount, currency: form.currency },
+      frequency: form.frequency,
+    };
+
     if (editingId) {
-      updateIncome(editingId, form);
+      const owner = findOwnerEvent(events, editingId);
+      if (owner?.type === 'add_income') {
+        updateEvent(
+          owner.id,
+          (e) =>
+            ({
+              ...e,
+              income: incomeData,
+            }) as AddIncomeEvent,
+        );
+      }
     } else {
-      addIncome(form);
+      addEvent({
+        type: 'add_income',
+        date: todayStr(),
+        income: incomeData,
+      });
     }
     setDialogOpen(false);
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
-    removeIncome(deleteTarget.id);
+    const owner = findOwnerEvent(events, deleteTarget.id);
+    if (owner) archiveEvent(owner.id);
     setDeleteTarget(null);
   };
-
-  const assetName = (id: string | null) =>
-    id ? (store.assets.find((a) => a.id === id)?.name ?? null) : null;
 
   return (
     <>
@@ -211,7 +143,7 @@ function IncomeSection() {
         </Button>
       </Flex>
 
-      {store.incomes.length === 0 && (
+      {derived.incomes.length === 0 && (
         <Card>
           <Text size="2" color="gray" align="center">
             No income sources yet.
@@ -219,8 +151,9 @@ function IncomeSection() {
         </Card>
       )}
 
-      {store.incomes.map((income) => {
-        const linked = assetName(income.linkedAssetId);
+      {derived.incomes.map((income) => {
+        const standalone = isStandaloneIncome(events, income.id);
+        const owner = findOwnerEvent(events, income.id);
         return (
           <Card key={income.id}>
             <Flex justify="between" align="center">
@@ -229,56 +162,55 @@ function IncomeSection() {
                   <Text size="3" weight="bold">
                     {income.name}
                   </Text>
-                  <Badge color={INCOME_TYPE_COLORS[income.type]} size="1">
-                    {INCOME_TYPE_LABELS[income.type]}
-                  </Badge>
-                  {income.isPassive && (
-                    <Badge size="1" variant="soft" color="green">
-                      Passive
+                  {!standalone && owner && (
+                    <Badge size="1" variant="soft" color="blue">
+                      from {owner.type.replace(/_/g, ' ')}
                     </Badge>
                   )}
                 </Flex>
                 <Flex gap="3" align="center">
                   <Text size="2" weight="bold">
-                    {formatMoney(income.amount, income.currency as Currency)}/
+                    {fmtMoney(income.amount)}/
                     {income.frequency === 'monthly'
                       ? 'mo'
                       : income.frequency === 'quarterly'
                         ? 'qtr'
                         : 'yr'}
                   </Text>
-                  <Text size="1" color="gray">
-                    (
-                    {formatMoney(
-                      toMonthly(income.amount, income.frequency),
-                      income.currency as Currency,
-                    )}
-                    /mo)
-                  </Text>
-                  {linked && (
-                    <Badge size="1" variant="outline">
-                      {linked}
-                    </Badge>
+                  {income.frequency !== 'monthly' && (
+                    <Text size="1" color="gray">
+                      (
+                      {fmtMoney({
+                        amount: toMonthly(
+                          income.amount.amount,
+                          income.frequency,
+                        ),
+                        currency: income.amount.currency,
+                      })}
+                      /mo)
+                    </Text>
                   )}
                 </Flex>
               </Flex>
-              <Flex gap="2">
-                <Button
-                  size="1"
-                  variant="ghost"
-                  onClick={() => openEdit(income)}
-                >
-                  <Pencil size={14} />
-                </Button>
-                <Button
-                  size="1"
-                  variant="ghost"
-                  color="red"
-                  onClick={() => setDeleteTarget(income)}
-                >
-                  <Trash2 size={14} />
-                </Button>
-              </Flex>
+              {standalone && (
+                <Flex gap="2">
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    onClick={() => openEdit(income)}
+                  >
+                    <Pencil size={14} />
+                  </Button>
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="red"
+                    onClick={() => setDeleteTarget(income)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </Flex>
+              )}
             </Flex>
           </Card>
         );
@@ -307,125 +239,17 @@ function IncomeSection() {
             <Flex gap="3">
               <div style={{ flex: 1 }}>
                 <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Type</span>
-                </Text>
-                <Select.Root
-                  value={form.type}
-                  onValueChange={(v) =>
-                    setForm((f) => ({
-                      ...f,
-                      type: v as IncomeType,
-                      isPassive: v !== 'salary',
-                    }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    {INCOME_TYPES.map((t) => (
-                      <Select.Item key={t} value={t}>
-                        {INCOME_TYPE_LABELS[t]}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Frequency</span>
-                </Text>
-                <Select.Root
-                  value={form.frequency}
-                  onValueChange={(v) => {
-                    const newFreq = v as Frequency;
-                    setForm((f) => ({ ...f, frequency: newFreq }));
-                    if (form.linkedAssetId && yieldPct) {
-                      const pct = Number.parseFloat(yieldPct);
-                      const asset = store.assets.find(
-                        (a) => a.id === form.linkedAssetId,
-                      );
-                      if (!Number.isNaN(pct) && asset && asset.value > 0) {
-                        const annualIncome = asset.value * (pct / 100);
-                        const amount = Math.round(
-                          annualIncome / frequencyMultiplier(newFreq),
-                        );
-                        setForm((f) => ({ ...f, amount, frequency: newFreq }));
-                      }
-                    }
-                  }}
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    {FREQUENCIES.map((f) => (
-                      <Select.Item key={f} value={f}>
-                        {FREQ_LABELS[f]}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-            </Flex>
-
-            <div>
-              <Text size="2" weight="medium" mb="1" asChild>
-                <span>Linked Asset</span>
-              </Text>
-              <Select.Root
-                value={form.linkedAssetId ?? '_none'}
-                onValueChange={(v) => handleAssetChange(v, form)}
-              >
-                <Select.Trigger style={{ width: '100%' }} />
-                <Select.Content>
-                  <Select.Item value="_none">None</Select.Item>
-                  {store.assets.map((a) => (
-                    <Select.Item key={a.id} value={a.id}>
-                      {a.name} ({formatMoney(a.value, a.currency)})
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
-            </div>
-
-            {form.linkedAssetId && (
-              <div>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Annual Yield %</span>
-                </Text>
-                <TextField.Root
-                  type="number"
-                  step="0.1"
-                  value={yieldPct}
-                  onChange={(e) => handleYieldChange(e.target.value)}
-                  placeholder="e.g. 2.5"
-                />
-                <Text size="1" color="gray">
-                  Sets amount based on asset value x yield
-                </Text>
-              </div>
-            )}
-
-            <Flex gap="3">
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
                   <span>Amount</span>
                 </Text>
                 <TextField.Root
                   type="number"
                   value={form.amount || ''}
-                  onChange={(e) => {
-                    const amount = Number(e.target.value) || 0;
-                    setForm((f) => ({ ...f, amount }));
-                    if (form.linkedAssetId) {
-                      const asset = store.assets.find(
-                        (a) => a.id === form.linkedAssetId,
-                      );
-                      if (asset && asset.value > 0) {
-                        const annual =
-                          amount * frequencyMultiplier(form.frequency);
-                        setYieldPct(((annual / asset.value) * 100).toFixed(2));
-                      }
-                    }
-                  }}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      amount: Number(e.target.value) || 0,
+                    }))
+                  }
                   placeholder="0"
                 />
               </div>
@@ -435,28 +259,40 @@ function IncomeSection() {
                 </Text>
                 <Select.Root
                   value={form.currency}
-                  onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, currency: v as Currency }))
+                  }
                 >
                   <Select.Trigger style={{ width: '100%' }} />
                   <Select.Content>
                     <Select.Item value="CZK">CZK</Select.Item>
                     <Select.Item value="EUR">EUR</Select.Item>
+                    <Select.Item value="USD">USD</Select.Item>
                   </Select.Content>
                 </Select.Root>
               </div>
             </Flex>
 
-            <Flex asChild gap="2" align="center">
-              <Text size="2">
-                <Checkbox
-                  checked={form.isPassive}
-                  onCheckedChange={(c) =>
-                    setForm((f) => ({ ...f, isPassive: c === true }))
-                  }
-                />
-                Passive income
+            <div>
+              <Text size="2" weight="medium" mb="1" asChild>
+                <span>Frequency</span>
               </Text>
-            </Flex>
+              <Select.Root
+                value={form.frequency}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, frequency: v as Frequency }))
+                }
+              >
+                <Select.Trigger style={{ width: '100%' }} />
+                <Select.Content>
+                  {FREQUENCIES.map((freq) => (
+                    <Select.Item key={freq} value={freq}>
+                      {FREQ_LABELS[freq]}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            </div>
           </Flex>
 
           <Flex gap="3" mt="4" justify="end">
@@ -499,10 +335,10 @@ function IncomeSection() {
 }
 
 function ExpenseSection() {
-  const { store, addExpense, updateExpense, removeExpense } = useFinance();
+  const { events, derived, addEvent, updateEvent, archiveEvent } = useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ExpenseInput>(emptyExpenseForm);
+  const [form, setForm] = useState<ExpenseForm>(emptyExpenseForm);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
 
   const openAdd = () => {
@@ -519,22 +355,41 @@ function ExpenseSection() {
 
   const handleSave = () => {
     if (!form.name.trim()) return;
+    const expenseData: Expense = {
+      id: editingId ?? crypto.randomUUID(),
+      name: form.name,
+      amount: { amount: form.amount, currency: form.currency },
+      frequency: form.frequency,
+    };
+
     if (editingId) {
-      updateExpense(editingId, form);
+      const owner = findOwnerEvent(events, editingId);
+      if (owner?.type === 'add_expense') {
+        updateEvent(
+          owner.id,
+          (e) =>
+            ({
+              ...e,
+              expense: expenseData,
+            }) as AddExpenseEvent,
+        );
+      }
     } else {
-      addExpense(form);
+      addEvent({
+        type: 'add_expense',
+        date: todayStr(),
+        expense: expenseData,
+      });
     }
     setDialogOpen(false);
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
-    removeExpense(deleteTarget.id);
+    const owner = findOwnerEvent(events, deleteTarget.id);
+    if (owner) archiveEvent(owner.id);
     setDeleteTarget(null);
   };
-
-  const liabilityName = (id: string | null) =>
-    id ? (store.liabilities.find((l) => l.id === id)?.name ?? null) : null;
 
   return (
     <>
@@ -546,7 +401,7 @@ function ExpenseSection() {
         </Button>
       </Flex>
 
-      {store.expenses.length === 0 && (
+      {derived.expenses.length === 0 && (
         <Card>
           <Text size="2" color="gray" align="center">
             No expenses yet.
@@ -554,8 +409,9 @@ function ExpenseSection() {
         </Card>
       )}
 
-      {store.expenses.map((expense) => {
-        const linked = liabilityName(expense.linkedLiabilityId);
+      {derived.expenses.map((expense) => {
+        const standalone = isStandaloneExpense(events, expense.id);
+        const owner = findOwnerEvent(events, expense.id);
         return (
           <Card key={expense.id}>
             <Flex justify="between" align="center">
@@ -564,56 +420,45 @@ function ExpenseSection() {
                   <Text size="3" weight="bold">
                     {expense.name}
                   </Text>
-                  <Badge
-                    color={EXPENSE_CATEGORY_COLORS[expense.category]}
-                    size="1"
-                  >
-                    {EXPENSE_CATEGORY_LABELS[expense.category]}
-                  </Badge>
-                  {expense.isEssential && (
-                    <Badge size="1" variant="soft" color="orange">
-                      Essential
+                  {!standalone && owner && (
+                    <Badge size="1" variant="soft" color="blue">
+                      from {owner.type.replace(/_/g, ' ')}
                     </Badge>
                   )}
                 </Flex>
                 <Flex gap="3" align="center">
                   <Text size="2" weight="bold">
-                    {formatMoney(expense.amount, expense.currency as Currency)}/
+                    {fmtMoney(expense.amount)}/
                     {expense.frequency === 'monthly'
                       ? 'mo'
                       : expense.frequency === 'quarterly'
                         ? 'qtr'
                         : 'yr'}
                   </Text>
-                  <Text size="1" color="gray">
-                    (
-                    {formatMoney(
-                      toMonthly(expense.amount, expense.frequency),
-                      expense.currency as Currency,
-                    )}
-                    /mo)
-                  </Text>
-                  {linked && (
-                    <Badge size="1" variant="outline">
-                      {linked}
-                    </Badge>
-                  )}
-                  {expense.linkedLiabilityId && (
-                    <Badge size="1" variant="soft" color="blue">
-                      Auto-managed
-                    </Badge>
+                  {expense.frequency !== 'monthly' && (
+                    <Text size="1" color="gray">
+                      (
+                      {fmtMoney({
+                        amount: toMonthly(
+                          expense.amount.amount,
+                          expense.frequency,
+                        ),
+                        currency: expense.amount.currency,
+                      })}
+                      /mo)
+                    </Text>
                   )}
                 </Flex>
               </Flex>
-              <Flex gap="2">
-                <Button
-                  size="1"
-                  variant="ghost"
-                  onClick={() => openEdit(expense)}
-                >
-                  <Pencil size={14} />
-                </Button>
-                {!expense.linkedLiabilityId && (
+              {standalone && (
+                <Flex gap="2">
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    onClick={() => openEdit(expense)}
+                  >
+                    <Pencil size={14} />
+                  </Button>
                   <Button
                     size="1"
                     variant="ghost"
@@ -622,8 +467,8 @@ function ExpenseSection() {
                   >
                     <Trash2 size={14} />
                   </Button>
-                )}
-              </Flex>
+                </Flex>
+              )}
             </Flex>
           </Card>
         );
@@ -645,83 +490,9 @@ function ExpenseSection() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, name: e.target.value }))
                 }
-                placeholder="e.g. Rent"
+                placeholder="e.g. Groceries"
               />
             </div>
-
-            <Flex gap="3">
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Category</span>
-                </Text>
-                <Select.Root
-                  value={form.category}
-                  onValueChange={(v) =>
-                    setForm((f) => ({
-                      ...f,
-                      category: v as ExpenseCategory,
-                    }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    {EXPENSE_CATEGORIES.map((c) => (
-                      <Select.Item key={c} value={c}>
-                        {EXPENSE_CATEGORY_LABELS[c]}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Frequency</span>
-                </Text>
-                <Select.Root
-                  value={form.frequency}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, frequency: v as Frequency }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    {FREQUENCIES.map((f) => (
-                      <Select.Item key={f} value={f}>
-                        {FREQ_LABELS[f]}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-            </Flex>
-
-            {form.category === 'liability' && (
-              <div>
-                <Text size="2" weight="medium" mb="1" asChild>
-                  <span>Linked Liability</span>
-                </Text>
-                <Select.Root
-                  value={form.linkedLiabilityId ?? '_none'}
-                  onValueChange={(v) =>
-                    setForm((f) => ({
-                      ...f,
-                      linkedLiabilityId: v === '_none' ? null : v,
-                    }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="_none">None</Select.Item>
-                    {store.liabilities.map((l) => (
-                      <Select.Item key={l.id} value={l.id}>
-                        {l.name}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-            )}
 
             <Flex gap="3">
               <div style={{ flex: 1 }}>
@@ -746,28 +517,40 @@ function ExpenseSection() {
                 </Text>
                 <Select.Root
                   value={form.currency}
-                  onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, currency: v as Currency }))
+                  }
                 >
                   <Select.Trigger style={{ width: '100%' }} />
                   <Select.Content>
                     <Select.Item value="CZK">CZK</Select.Item>
                     <Select.Item value="EUR">EUR</Select.Item>
+                    <Select.Item value="USD">USD</Select.Item>
                   </Select.Content>
                 </Select.Root>
               </div>
             </Flex>
 
-            <Flex asChild gap="2" align="center">
-              <Text size="2">
-                <Checkbox
-                  checked={form.isEssential}
-                  onCheckedChange={(c) =>
-                    setForm((f) => ({ ...f, isEssential: c === true }))
-                  }
-                />
-                Essential expense
+            <div>
+              <Text size="2" weight="medium" mb="1" asChild>
+                <span>Frequency</span>
               </Text>
-            </Flex>
+              <Select.Root
+                value={form.frequency}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, frequency: v as Frequency }))
+                }
+              >
+                <Select.Trigger style={{ width: '100%' }} />
+                <Select.Content>
+                  {FREQUENCIES.map((freq) => (
+                    <Select.Item key={freq} value={freq}>
+                      {FREQ_LABELS[freq]}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            </div>
           </Flex>
 
           <Flex gap="3" mt="4" justify="end">
