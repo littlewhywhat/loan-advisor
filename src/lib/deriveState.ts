@@ -1,15 +1,19 @@
 import type {
   Asset,
   DerivedState,
+  EventStatus,
   Expense,
   FinanceEvent,
   Income,
   Liability,
 } from '@/types/events';
 
-export function deriveState(events: FinanceEvent[]): DerivedState {
+export function deriveState(
+  events: FinanceEvent[],
+  status: EventStatus = 'active',
+): DerivedState {
   const active = events
-    .filter((e) => e.status === 'active')
+    .filter((e) => e.status === status)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const assets: Asset[] = [];

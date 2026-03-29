@@ -11,7 +11,7 @@ import {
   Text,
   TextField,
 } from '@radix-ui/themes';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useEvents } from '@/context/EventProvider';
 import { findOwnerEvent, isEventEditable, todayStr } from '@/lib/eventUtils';
@@ -130,13 +130,23 @@ function emptyLoanForm(): PersonalLoanForm {
 }
 
 export default function LiabilitiesPage() {
-  const { events, derived, addEvent, updateEvent, archiveEvent } = useEvents();
+  const {
+    events,
+    derived,
+    archivedDerived,
+    addEvent,
+    updateEvent,
+    archiveEvent,
+    restoreEvent,
+    deleteEvent,
+  } = useEvents();
 
   const [mortgageDialogOpen, setMortgageDialogOpen] = useState(false);
   const [loanDialogOpen, setLoanDialogOpen] = useState(false);
   const [mortgageForm, setMortgageForm] = useState(emptyMortgageForm);
   const [loanForm, setLoanForm] = useState(emptyLoanForm);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Liability | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Liability | null>(null);
 
   const openEditMortgage = (event: TakeMortgageEvent) => {
@@ -320,10 +330,22 @@ export default function LiabilitiesPage() {
     setEditingEventId(null);
   };
 
+  const handleArchive = () => {
+    if (!archiveTarget) return;
+    const owner = findOwnerEvent(events, archiveTarget.id);
+    if (owner) archiveEvent(owner.id);
+    setArchiveTarget(null);
+  };
+
+  const handleRestore = (liability: Liability) => {
+    const owner = findOwnerEvent(events, liability.id);
+    if (owner) restoreEvent(owner.id);
+  };
+
   const handleDelete = () => {
     if (!deleteTarget) return;
     const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) archiveEvent(owner.id);
+    if (owner) deleteEvent(owner.id);
     setDeleteTarget(null);
   };
 
@@ -413,9 +435,9 @@ export default function LiabilitiesPage() {
                       size="1"
                       variant="ghost"
                       color="red"
-                      onClick={() => setDeleteTarget(liability)}
+                      onClick={() => setArchiveTarget(liability)}
                     >
-                      <Trash2 size={14} />
+                      <Archive size={14} />
                     </Button>
                   </Flex>
                 )}
@@ -548,6 +570,51 @@ export default function LiabilitiesPage() {
           </Card>
         );
       })}
+
+      {archivedDerived.liabilities.length > 0 && (
+        <>
+          <Heading size="4" color="gray" mt="4">
+            Archived
+          </Heading>
+          {archivedDerived.liabilities.map((liability) => (
+            <Card key={liability.id} style={{ opacity: 0.6 }}>
+              <Flex justify="between" align="center">
+                <Flex align="center" gap="2">
+                  <Text size="3" weight="bold">
+                    {liability.name}
+                  </Text>
+                  <Badge
+                    size="1"
+                    color={liability.kind === 'mortgage' ? 'blue' : 'orange'}
+                  >
+                    {liability.kind === 'mortgage' ? 'Mortgage' : 'Loan'}
+                  </Badge>
+                  <Text size="2" color="gray">
+                    {fmtMoney(liability.value)}
+                  </Text>
+                </Flex>
+                <Flex gap="2">
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    onClick={() => handleRestore(liability)}
+                  >
+                    <RotateCcw size={14} />
+                  </Button>
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="red"
+                    onClick={() => setDeleteTarget(liability)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </Flex>
+              </Flex>
+            </Card>
+          ))}
+        </>
+      )}
 
       <Dialog.Root
         open={mortgageDialogOpen}
@@ -932,13 +999,13 @@ export default function LiabilitiesPage() {
       </Dialog.Root>
 
       <AlertDialog.Root
-        open={!!deleteTarget}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        open={!!archiveTarget}
+        onOpenChange={(open) => !open && setArchiveTarget(null)}
       >
         <AlertDialog.Content maxWidth="400px">
           <AlertDialog.Title>Archive Event</AlertDialog.Title>
           <AlertDialog.Description>
-            Archiving <strong>{deleteTarget?.name}</strong> will also remove the
+            Archiving <strong>{archiveTarget?.name}</strong> will also remove the
             linked asset, expense, and any rental income. Continue?
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
@@ -948,8 +1015,33 @@ export default function LiabilitiesPage() {
               </Button>
             </AlertDialog.Cancel>
             <AlertDialog.Action>
-              <Button color="red" onClick={handleDelete}>
+              <Button color="red" onClick={handleArchive}>
                 Archive
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Delete Liability</AlertDialog.Title>
+          <AlertDialog.Description>
+            Permanently delete <strong>{deleteTarget?.name}</strong> and all
+            linked entities? This cannot be undone.
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button color="red" onClick={handleDelete}>
+                Delete
               </Button>
             </AlertDialog.Action>
           </Flex>

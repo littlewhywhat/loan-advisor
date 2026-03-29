@@ -10,7 +10,7 @@ import {
   Text,
   TextField,
 } from '@radix-ui/themes';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useEvents } from '@/context/EventProvider';
 import {
@@ -55,10 +55,20 @@ function assetToForm(a: Asset): AssetForm {
 }
 
 export default function AssetsPage() {
-  const { events, derived, addEvent, updateEvent, archiveEvent } = useEvents();
+  const {
+    events,
+    derived,
+    archivedDerived,
+    addEvent,
+    updateEvent,
+    archiveEvent,
+    restoreEvent,
+    deleteEvent,
+  } = useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AssetForm>(emptyAssetForm);
+  const [archiveTarget, setArchiveTarget] = useState<Asset | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
 
   const openAdd = () => {
@@ -105,10 +115,22 @@ export default function AssetsPage() {
     setDialogOpen(false);
   };
 
+  const handleArchive = () => {
+    if (!archiveTarget) return;
+    const owner = findOwnerEvent(events, archiveTarget.id);
+    if (owner) archiveEvent(owner.id);
+    setArchiveTarget(null);
+  };
+
+  const handleRestore = (asset: Asset) => {
+    const owner = findOwnerEvent(events, asset.id);
+    if (owner) restoreEvent(owner.id);
+  };
+
   const handleDelete = () => {
     if (!deleteTarget) return;
     const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) archiveEvent(owner.id);
+    if (owner) deleteEvent(owner.id);
     setDeleteTarget(null);
   };
 
@@ -164,9 +186,9 @@ export default function AssetsPage() {
                       size="1"
                       variant="ghost"
                       color="red"
-                      onClick={() => setDeleteTarget(asset)}
+                      onClick={() => setArchiveTarget(asset)}
                     >
-                      <Trash2 size={14} />
+                      <Archive size={14} />
                     </Button>
                   </Flex>
                 )}
@@ -248,6 +270,48 @@ export default function AssetsPage() {
           </Card>
         );
       })}
+
+      {archivedDerived.assets.length > 0 && (
+        <>
+          <Heading size="4" color="gray" mt="4">
+            Archived
+          </Heading>
+          {archivedDerived.assets.map((asset) => (
+            <Card key={asset.id} style={{ opacity: 0.6 }}>
+              <Flex justify="between" align="center">
+                <Flex align="center" gap="2">
+                  <Text size="3" weight="bold">
+                    {asset.name}
+                  </Text>
+                  <Badge color={KIND_COLORS[asset.kind]} size="1">
+                    {KIND_LABELS[asset.kind]}
+                  </Badge>
+                  <Text size="2" color="gray">
+                    {fmtMoney(asset.value)}
+                  </Text>
+                </Flex>
+                <Flex gap="2">
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    onClick={() => handleRestore(asset)}
+                  >
+                    <RotateCcw size={14} />
+                  </Button>
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="red"
+                    onClick={() => setDeleteTarget(asset)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </Flex>
+              </Flex>
+            </Card>
+          ))}
+        </>
+      )}
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="500px">
@@ -353,14 +417,39 @@ export default function AssetsPage() {
       </Dialog.Root>
 
       <AlertDialog.Root
+        open={!!archiveTarget}
+        onOpenChange={(open) => !open && setArchiveTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Archive Asset</AlertDialog.Title>
+          <AlertDialog.Description>
+            Are you sure you want to archive{' '}
+            <strong>{archiveTarget?.name}</strong>?
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button color="red" onClick={handleArchive}>
+                Archive
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
         <AlertDialog.Content maxWidth="400px">
           <AlertDialog.Title>Delete Asset</AlertDialog.Title>
           <AlertDialog.Description>
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget?.name}</strong>?
+            Permanently delete <strong>{deleteTarget?.name}</strong>? This
+            cannot be undone.
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Cancel>

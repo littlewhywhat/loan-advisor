@@ -54,6 +54,11 @@ export function useEventStore() {
     [store.events],
   );
 
+  const archivedDerived: DerivedState = useMemo(
+    () => deriveState(store.events, 'archived'),
+    [store.events],
+  );
+
   const setMode = (next: AppMode) => {
     localStorage.setItem(MODE_KEY, next);
     setModeState(next);
@@ -102,6 +107,7 @@ export function useEventStore() {
   return {
     events: store.events,
     derived,
+    archivedDerived,
     mode,
     setMode,
     addEvent,

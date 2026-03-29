@@ -11,7 +11,7 @@ import {
   Text,
   TextField,
 } from '@radix-ui/themes';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useEvents } from '@/context/EventProvider';
 import {
@@ -78,10 +78,20 @@ function expenseToForm(e: Expense): ExpenseForm {
 }
 
 function IncomeSection() {
-  const { events, derived, addEvent, updateEvent, archiveEvent } = useEvents();
+  const {
+    events,
+    derived,
+    archivedDerived,
+    addEvent,
+    updateEvent,
+    archiveEvent,
+    restoreEvent,
+    deleteEvent,
+  } = useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<IncomeForm>(emptyIncomeForm);
+  const [archiveTarget, setArchiveTarget] = useState<Income | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Income | null>(null);
 
   const openAdd = () => {
@@ -127,10 +137,22 @@ function IncomeSection() {
     setDialogOpen(false);
   };
 
+  const handleArchive = () => {
+    if (!archiveTarget) return;
+    const owner = findOwnerEvent(events, archiveTarget.id);
+    if (owner) archiveEvent(owner.id);
+    setArchiveTarget(null);
+  };
+
+  const handleRestore = (income: Income) => {
+    const owner = findOwnerEvent(events, income.id);
+    if (owner) restoreEvent(owner.id);
+  };
+
   const handleDelete = () => {
     if (!deleteTarget) return;
     const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) archiveEvent(owner.id);
+    if (owner) deleteEvent(owner.id);
     setDeleteTarget(null);
   };
 
@@ -207,9 +229,9 @@ function IncomeSection() {
                     size="1"
                     variant="ghost"
                     color="red"
-                    onClick={() => setDeleteTarget(income)}
+                    onClick={() => setArchiveTarget(income)}
                   >
-                    <Trash2 size={14} />
+                    <Archive size={14} />
                   </Button>
                 </Flex>
               )}
@@ -217,6 +239,50 @@ function IncomeSection() {
           </Card>
         );
       })}
+
+      {archivedDerived.incomes.length > 0 && (
+        <>
+          <Heading size="3" color="gray" mt="2">
+            Archived
+          </Heading>
+          {archivedDerived.incomes.map((income) => (
+            <Card key={income.id} style={{ opacity: 0.6 }}>
+              <Flex justify="between" align="center">
+                <Flex align="center" gap="2">
+                  <Text size="3" weight="bold">
+                    {income.name}
+                  </Text>
+                  <Text size="2" color="gray">
+                    {fmtMoney(income.amount)}/
+                    {income.frequency === 'monthly'
+                      ? 'mo'
+                      : income.frequency === 'quarterly'
+                        ? 'qtr'
+                        : 'yr'}
+                  </Text>
+                </Flex>
+                <Flex gap="2">
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    onClick={() => handleRestore(income)}
+                  >
+                    <RotateCcw size={14} />
+                  </Button>
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="red"
+                    onClick={() => setDeleteTarget(income)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </Flex>
+              </Flex>
+            </Card>
+          ))}
+        </>
+      )}
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="500px">
@@ -309,14 +375,39 @@ function IncomeSection() {
       </Dialog.Root>
 
       <AlertDialog.Root
+        open={!!archiveTarget}
+        onOpenChange={(open) => !open && setArchiveTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Archive Income</AlertDialog.Title>
+          <AlertDialog.Description>
+            Are you sure you want to archive{' '}
+            <strong>{archiveTarget?.name}</strong>?
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button color="red" onClick={handleArchive}>
+                Archive
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
         <AlertDialog.Content maxWidth="400px">
           <AlertDialog.Title>Delete Income</AlertDialog.Title>
           <AlertDialog.Description>
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget?.name}</strong>?
+            Permanently delete <strong>{deleteTarget?.name}</strong>? This
+            cannot be undone.
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Cancel>
@@ -337,10 +428,20 @@ function IncomeSection() {
 }
 
 function ExpenseSection() {
-  const { events, derived, addEvent, updateEvent, archiveEvent } = useEvents();
+  const {
+    events,
+    derived,
+    archivedDerived,
+    addEvent,
+    updateEvent,
+    archiveEvent,
+    restoreEvent,
+    deleteEvent,
+  } = useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ExpenseForm>(emptyExpenseForm);
+  const [archiveTarget, setArchiveTarget] = useState<Expense | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
 
   const openAdd = () => {
@@ -386,10 +487,22 @@ function ExpenseSection() {
     setDialogOpen(false);
   };
 
+  const handleArchive = () => {
+    if (!archiveTarget) return;
+    const owner = findOwnerEvent(events, archiveTarget.id);
+    if (owner) archiveEvent(owner.id);
+    setArchiveTarget(null);
+  };
+
+  const handleRestore = (expense: Expense) => {
+    const owner = findOwnerEvent(events, expense.id);
+    if (owner) restoreEvent(owner.id);
+  };
+
   const handleDelete = () => {
     if (!deleteTarget) return;
     const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) archiveEvent(owner.id);
+    if (owner) deleteEvent(owner.id);
     setDeleteTarget(null);
   };
 
@@ -466,9 +579,9 @@ function ExpenseSection() {
                     size="1"
                     variant="ghost"
                     color="red"
-                    onClick={() => setDeleteTarget(expense)}
+                    onClick={() => setArchiveTarget(expense)}
                   >
-                    <Trash2 size={14} />
+                    <Archive size={14} />
                   </Button>
                 </Flex>
               )}
@@ -476,6 +589,50 @@ function ExpenseSection() {
           </Card>
         );
       })}
+
+      {archivedDerived.expenses.length > 0 && (
+        <>
+          <Heading size="3" color="gray" mt="2">
+            Archived
+          </Heading>
+          {archivedDerived.expenses.map((expense) => (
+            <Card key={expense.id} style={{ opacity: 0.6 }}>
+              <Flex justify="between" align="center">
+                <Flex align="center" gap="2">
+                  <Text size="3" weight="bold">
+                    {expense.name}
+                  </Text>
+                  <Text size="2" color="gray">
+                    {fmtMoney(expense.amount)}/
+                    {expense.frequency === 'monthly'
+                      ? 'mo'
+                      : expense.frequency === 'quarterly'
+                        ? 'qtr'
+                        : 'yr'}
+                  </Text>
+                </Flex>
+                <Flex gap="2">
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    onClick={() => handleRestore(expense)}
+                  >
+                    <RotateCcw size={14} />
+                  </Button>
+                  <Button
+                    size="1"
+                    variant="ghost"
+                    color="red"
+                    onClick={() => setDeleteTarget(expense)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </Flex>
+              </Flex>
+            </Card>
+          ))}
+        </>
+      )}
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="500px">
@@ -568,14 +725,39 @@ function ExpenseSection() {
       </Dialog.Root>
 
       <AlertDialog.Root
+        open={!!archiveTarget}
+        onOpenChange={(open) => !open && setArchiveTarget(null)}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Archive Expense</AlertDialog.Title>
+          <AlertDialog.Description>
+            Are you sure you want to archive{' '}
+            <strong>{archiveTarget?.name}</strong>?
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button color="red" onClick={handleArchive}>
+                Archive
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
       >
         <AlertDialog.Content maxWidth="400px">
           <AlertDialog.Title>Delete Expense</AlertDialog.Title>
           <AlertDialog.Description>
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget?.name}</strong>?
+            Permanently delete <strong>{deleteTarget?.name}</strong>? This
+            cannot be undone.
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Cancel>
