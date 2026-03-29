@@ -80,6 +80,11 @@ export type AddIncomeEvent = EventBase & {
   income: Income;
 };
 
+export type AddAssetEvent = EventBase & {
+  type: 'add_asset';
+  asset: Asset;
+};
+
 export type AddExpenseEvent = EventBase & {
   type: 'add_expense';
   expense: Expense;
@@ -93,6 +98,7 @@ export type ManualCorrectionEvent = EventBase & {
 export type FinanceEvent =
   | TakeMortgageEvent
   | TakePersonalLoanEvent
+  | AddAssetEvent
   | AddIncomeEvent
   | AddExpenseEvent
   | ManualCorrectionEvent;

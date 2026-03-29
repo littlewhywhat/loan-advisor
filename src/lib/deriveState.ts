@@ -32,6 +32,10 @@ export function deriveState(events: FinanceEvent[]): DerivedState {
         expenses.push(event.expense);
         break;
       }
+      case 'add_asset': {
+        assets.push(event.asset);
+        break;
+      }
       case 'add_income': {
         incomes.push(event.income);
         break;

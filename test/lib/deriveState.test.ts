@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { deriveState } from '@/lib/deriveState';
 import type {
+  AddAssetEvent,
   AddExpenseEvent,
   AddIncomeEvent,
   FinanceEvent,
@@ -106,6 +107,34 @@ const personalLoan: TakePersonalLoanEvent = {
   },
 };
 
+const savings: AddAssetEvent = {
+  id: 'evt-6',
+  date: '2026-04-01',
+  status: 'active',
+  type: 'add_asset',
+  asset: {
+    kind: 'cash',
+    id: 'cash-2',
+    name: 'Savings',
+    value: { amount: 500_000, currency: 'CZK' },
+    growthRate: 3.0,
+  },
+};
+
+const familyHouse: AddAssetEvent = {
+  id: 'evt-7',
+  date: '2026-04-01',
+  status: 'active',
+  type: 'add_asset',
+  asset: {
+    kind: 'flat',
+    id: 'flat-3',
+    name: 'Family House',
+    value: { amount: 8_000_000, currency: 'CZK' },
+    growthRate: 2.5,
+  },
+};
+
 const salary: AddIncomeEvent = {
   id: 'evt-4',
   date: '2026-04-01',
@@ -164,6 +193,24 @@ describe('deriveState', () => {
       expect(state.assets[0]).toEqual(personalLoan.cash);
       expect(state.expenses).toHaveLength(1);
       expect(state.expenses[0]).toEqual(personalLoan.expense);
+    });
+  });
+
+  describe('add asset', () => {
+    it('creates standalone cash asset', () => {
+      const state = deriveState([savings]);
+      expect(state.assets).toHaveLength(1);
+      expect(state.assets[0]).toEqual(savings.asset);
+      expect(state.liabilities).toHaveLength(0);
+      expect(state.incomes).toHaveLength(0);
+      expect(state.expenses).toHaveLength(0);
+    });
+
+    it('creates standalone flat asset', () => {
+      const state = deriveState([familyHouse]);
+      expect(state.assets).toHaveLength(1);
+      expect(state.assets[0]).toEqual(familyHouse.asset);
+      expect(state.assets[0].kind).toBe('flat');
     });
   });
 
@@ -321,10 +368,12 @@ describe('deriveState', () => {
         mortgage,
         rentalMortgage,
         personalLoan,
+        savings,
+        familyHouse,
         salary,
         groceries,
       ]);
-      expect(state.assets).toHaveLength(3);
+      expect(state.assets).toHaveLength(5);
       expect(state.liabilities).toHaveLength(3);
       expect(state.incomes).toHaveLength(2);
       expect(state.expenses).toHaveLength(4);

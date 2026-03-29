@@ -69,8 +69,7 @@ function yearsBetween(start: string, end: string): number {
   const s = new Date(start);
   const e = new Date(end);
   return Math.round(
-    (e.getFullYear() - s.getFullYear()) +
-      (e.getMonth() - s.getMonth()) / 12,
+    e.getFullYear() - s.getFullYear() + (e.getMonth() - s.getMonth()) / 12,
   );
 }
 
@@ -212,8 +211,9 @@ export default function LiabilitiesPage() {
 
     const buildEvent = (): FinanceEvent => {
       if (mortgageForm.rental) {
-        const existingIncomeId =
-          existingEvent?.rental ? existingEvent.income.id : undefined;
+        const existingIncomeId = existingEvent?.rental
+          ? existingEvent.income.id
+          : undefined;
         return {
           ...base,
           id: editingEventId ?? '',
@@ -221,8 +221,7 @@ export default function LiabilitiesPage() {
           rental: true,
           income: {
             id: uid(existingIncomeId),
-            name:
-              mortgageForm.rentalIncomeName || `${mortgageForm.name} Rent`,
+            name: mortgageForm.rentalIncomeName || `${mortgageForm.name} Rent`,
             amount: { amount: mortgageForm.rentalIncomeAmount, currency },
             frequency: 'monthly' as Frequency,
           },
@@ -248,8 +247,7 @@ export default function LiabilitiesPage() {
           rental: true,
           income: {
             id: crypto.randomUUID(),
-            name:
-              mortgageForm.rentalIncomeName || `${mortgageForm.name} Rent`,
+            name: mortgageForm.rentalIncomeName || `${mortgageForm.name} Rent`,
             amount: { amount: mortgageForm.rentalIncomeAmount, currency },
             frequency: 'monthly' as Frequency,
           },

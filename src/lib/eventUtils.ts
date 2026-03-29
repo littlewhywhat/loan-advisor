@@ -15,6 +15,8 @@ function ownsEntity(e: FinanceEvent, entityId: string): boolean {
         e.cash.id === entityId ||
         e.expense.id === entityId
       );
+    case 'add_asset':
+      return e.asset.id === entityId;
     case 'add_income':
       return e.income.id === entityId;
     case 'add_expense':
@@ -29,6 +31,14 @@ export function findOwnerEvent(
   entityId: string,
 ): FinanceEvent | undefined {
   return events.find((e) => ownsEntity(e, entityId));
+}
+
+export function isStandaloneAsset(
+  events: FinanceEvent[],
+  assetId: string,
+): boolean {
+  const owner = findOwnerEvent(events, assetId);
+  return owner?.type === 'add_asset';
 }
 
 export function isStandaloneIncome(
