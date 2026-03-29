@@ -44,6 +44,9 @@ entity Asset {
 entity Flat {
 }
 
+entity Cash {
+}
+
 entity Liability {
   * id : uuid <<PK>>
   --

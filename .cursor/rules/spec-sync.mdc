@@ -1,0 +1,13 @@
+---
+description: Keep spec diagrams and features in sync with code changes
+globs: "**"
+alwaysApply: false
+---
+
+# Spec Sync
+
+When making changes to domain logic (events, entities, derived state, pages):
+
+1. Check `spec/diagram/events.puml` and `entities.puml` — update if adding/removing event types or entity types
+2. Check `spec/features/` — update or create `.feature` files if adding new user-facing actions or changing existing behavior
+3. Spec changes should be committed alongside the code changes, not as a separate step
