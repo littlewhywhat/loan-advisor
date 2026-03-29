@@ -2,6 +2,7 @@ import { monthlyPayment, monthlyPaymentFromMonths, monthsBetween, remainingBalan
 import { formatMoney, toMonthly } from '@/lib/format';
 import type {
   Asset,
+  CashAllocation,
   Currency,
   Frequency,
   NewEventInput,
@@ -63,6 +64,20 @@ export type RepayLoanFormData = {
   interestRate: number;
   loanStartDate: string;
   loanEndDate: string;
+};
+
+export type BuyAssetFormAllocation = {
+  cashAssetId: string;
+  amount: number;
+};
+
+export type BuyAssetFormData = {
+  name: string;
+  kind: Asset['kind'];
+  value: number;
+  currency: Currency;
+  growthRate: number;
+  allocations: BuyAssetFormAllocation[];
 };
 
 function uid(): string {
@@ -253,10 +268,34 @@ export function buildRepayLoanInput(form: RepayLoanFormData, date: string): NewE
   };
 }
 
+export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEventInput {
+  const currency = form.currency;
+  const allocations: CashAllocation[] = form.allocations
+    .filter((a) => a.amount > 0)
+    .map((a) => ({
+      cashAssetId: a.cashAssetId,
+      amount: { amount: a.amount, currency },
+    }));
+
+  return {
+    type: 'buy_asset',
+    date,
+    asset: {
+      id: uid(),
+      name: form.name,
+      kind: form.kind,
+      value: { amount: form.value, currency },
+      growthRate: form.growthRate / 100,
+    } as Asset,
+    allocations,
+  };
+}
+
 const TYPE_LABELS: Record<string, string> = {
   add_income: 'Income',
   add_expense: 'Expense',
   add_asset: 'Asset',
+  buy_asset: 'Buy Asset',
   take_mortgage: 'Mortgage',
   take_personal_loan: 'Loan',
   repay_loan: 'Repay Loan',
@@ -291,6 +330,13 @@ export function describeEvent(input: NewEventInput): {
         detail: `${formatMoney(input.asset.value.amount, input.asset.value.currency)}`,
         date: input.date,
       };
+    case 'buy_asset':
+      return {
+        typeLabel,
+        name: input.asset.name,
+        detail: `${formatMoney(input.asset.value.amount, input.asset.value.currency)} (${input.allocations.length} source${input.allocations.length > 1 ? 's' : ''})`,
+        date: input.date,
+      };
     case 'take_mortgage':
       return {
         typeLabel,
@@ -321,6 +367,7 @@ export const EVENT_TYPES = [
   { value: 'add_income', label: 'Add Income' },
   { value: 'add_expense', label: 'Add Expense' },
   { value: 'add_asset', label: 'Add Asset' },
+  { value: 'buy_asset', label: 'Buy Asset' },
   { value: 'take_mortgage', label: 'Take Mortgage' },
   { value: 'take_personal_loan', label: 'Take Personal Loan' },
   { value: 'repay_loan', label: 'Repay Loan' },
@@ -364,6 +411,17 @@ export function emptyPersonalLoanForm(): PersonalLoanFormData {
     currency: 'CZK',
     startDate: new Date().toISOString().slice(0, 10),
     termYears: 5,
+  };
+}
+
+export function emptyBuyAssetForm(): BuyAssetFormData {
+  return {
+    name: '',
+    kind: 'flat',
+    value: 0,
+    currency: 'CZK',
+    growthRate: 3.0,
+    allocations: [],
   };
 }
 

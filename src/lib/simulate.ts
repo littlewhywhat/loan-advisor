@@ -191,6 +191,23 @@ function injectEvent(
         isStrategy: true,
       });
       break;
+    case 'buy_asset': {
+      state.assetStates.push({
+        id: event.asset.id,
+        name: event.asset.name,
+        kind: event.asset.kind,
+        value: event.asset.value.amount,
+        growthRate: event.asset.growthRate,
+        isStrategy: true,
+      });
+      for (const alloc of event.allocations) {
+        const cash = state.assetStates.find((a) => a.id === alloc.cashAssetId);
+        if (cash) {
+          cash.value = Math.max(0, cash.value - alloc.amount.amount);
+        }
+      }
+      break;
+    }
     case 'take_mortgage': {
       const principal = event.mortgage.value.amount;
       const totalLoanMonths = monthsBetween(event.mortgage.startDate, event.mortgage.endDate);
@@ -456,6 +473,7 @@ function collectEntityIds(event: FinanceEvent): string[] {
     case 'add_income': return [event.income.id];
     case 'add_expense': return [event.expense.id];
     case 'add_asset': return [event.asset.id];
+    case 'buy_asset': return [event.asset.id];
     case 'take_mortgage': {
       const ids = [event.mortgage.id, event.flat.id, event.expense.id];
       if (event.rental) ids.push(event.income.id);

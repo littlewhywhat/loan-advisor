@@ -40,6 +40,19 @@ export function deriveState(
         assets.push(event.asset);
         break;
       }
+      case 'buy_asset': {
+        assets.push(event.asset);
+        for (const alloc of event.allocations) {
+          const cash = assets.find((a) => a.id === alloc.cashAssetId);
+          if (cash) {
+            cash.value = {
+              ...cash.value,
+              amount: Math.max(0, cash.value.amount - alloc.amount.amount),
+            };
+          }
+        }
+        break;
+      }
       case 'add_income': {
         incomes.push(event.income);
         break;

@@ -95,6 +95,17 @@ export type ManualCorrectionEvent = EventBase & {
   changes: Record<string, unknown>;
 };
 
+export type CashAllocation = {
+  cashAssetId: string;
+  amount: MoneyAmount;
+};
+
+export type BuyAssetEvent = EventBase & {
+  type: 'buy_asset';
+  asset: Asset;
+  allocations: CashAllocation[];
+};
+
 export type RepayLoanStrategy = 'reduce_payment' | 'reduce_term';
 
 export type RepayLoanEvent = EventBase & {
@@ -113,6 +124,7 @@ export type FinanceEvent =
   | TakeMortgageEvent
   | TakePersonalLoanEvent
   | AddAssetEvent
+  | BuyAssetEvent
   | AddIncomeEvent
   | AddExpenseEvent
   | ManualCorrectionEvent

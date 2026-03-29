@@ -533,6 +533,7 @@ export default function SimulatorPage() {
         strategy={strategy}
         events={events}
         liabilities={derived.liabilities}
+        cashAssets={derived.assets.filter((a): a is import('@/types/events').Cash => a.kind === 'cash')}
         onAddEvent={addStrategyEvent}
         onRemoveEvent={removeStrategyEvent}
         onApply={handleApply}
