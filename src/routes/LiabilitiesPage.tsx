@@ -51,6 +51,7 @@ type MortgageForm = {
   currency: Currency;
   startDate: string;
   termYears: number;
+  growthRate: string;
   rental: boolean;
   rentalIncomeName: string;
   rentalIncomeAmount: number;
@@ -82,6 +83,7 @@ function mortgageEventToForm(event: TakeMortgageEvent): MortgageForm {
     currency: event.mortgage.value.currency,
     startDate: event.mortgage.startDate,
     termYears: yearsBetween(event.mortgage.startDate, event.mortgage.endDate),
+    growthRate: (event.flat.growthRate * 100).toFixed(1),
     rental: event.rental,
     rentalIncomeName: event.rental ? event.income.name : '',
     rentalIncomeAmount: event.rental ? event.income.amount.amount : 0,
@@ -108,6 +110,7 @@ function emptyMortgageForm(): MortgageForm {
     currency: 'CZK',
     startDate: todayStr(),
     termYears: 30,
+    growthRate: '3.0',
     rental: false,
     rentalIncomeName: '',
     rentalIncomeAmount: 0,
@@ -199,7 +202,7 @@ export default function LiabilitiesPage() {
         name: mortgageForm.name,
         kind: 'flat' as const,
         value: { amount: flatValue, currency },
-        growthRate: existingEvent?.flat.growthRate ?? 0.03,
+        growthRate: Number(mortgageForm.growthRate) / 100,
       },
       expense: {
         id: uid(existingEvent?.expense.id),
@@ -641,6 +644,23 @@ export default function LiabilitiesPage() {
                 />
               </div>
             </Flex>
+
+            <div>
+              <Text size="2" weight="medium" mb="1" asChild>
+                <span>Flat Growth Rate (%/yr)</span>
+              </Text>
+              <TextField.Root
+                type="number"
+                step="0.1"
+                value={mortgageForm.growthRate}
+                onChange={(e) =>
+                  setMortgageForm((f) => ({
+                    ...f,
+                    growthRate: e.target.value,
+                  }))
+                }
+              />
+            </div>
 
             {mortgageMonthly > 0 && (
               <Card variant="surface">
