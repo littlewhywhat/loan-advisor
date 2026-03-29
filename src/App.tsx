@@ -1,6 +1,7 @@
 import { Theme } from '@radix-ui/themes';
 import { Route, Routes } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
+import { EventProvider } from '@/context/EventProvider';
 import { FinanceProvider } from '@/context/FinanceProvider';
 import AssetsPage from '@/routes/AssetsPage';
 import DashboardPage from '@/routes/DashboardPage';
@@ -12,18 +13,20 @@ import SimulatorPage from '@/routes/SimulatorPage';
 export default function App() {
   return (
     <Theme>
-      <FinanceProvider>
-        <AppLayout>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/assets" element={<AssetsPage />} />
-            <Route path="/liabilities" element={<LiabilitiesPage />} />
-            <Route path="/cashflows" element={<IncomesExpensesPage />} />
-            <Route path="/simulator" element={<SimulatorPage />} />
-            <Route path="/calculator" element={<LoanCalculatorPage />} />
-          </Routes>
-        </AppLayout>
-      </FinanceProvider>
+      <EventProvider>
+        <FinanceProvider>
+          <AppLayout>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/assets" element={<AssetsPage />} />
+              <Route path="/liabilities" element={<LiabilitiesPage />} />
+              <Route path="/cashflows" element={<IncomesExpensesPage />} />
+              <Route path="/simulator" element={<SimulatorPage />} />
+              <Route path="/calculator" element={<LoanCalculatorPage />} />
+            </Routes>
+          </AppLayout>
+        </FinanceProvider>
+      </EventProvider>
     </Theme>
   );
 }
