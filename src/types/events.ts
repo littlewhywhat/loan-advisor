@@ -56,14 +56,16 @@ type EventBase = {
   status: EventStatus;
 };
 
-export type TakeMortgageEvent = EventBase & {
+type TakeMortgageBase = EventBase & {
   type: 'take_mortgage';
-  rental: boolean;
   mortgage: Mortgage;
   flat: Flat;
   expense: Expense;
-  income: Income | null;
 };
+
+export type TakeMortgageEvent =
+  | (TakeMortgageBase & { rental: false })
+  | (TakeMortgageBase & { rental: true; income: Income });
 
 export type TakePersonalLoanEvent = EventBase & {
   type: 'take_personal_loan';

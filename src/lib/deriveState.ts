@@ -23,7 +23,7 @@ export function deriveState(events: FinanceEvent[]): DerivedState {
         liabilities.push(event.mortgage);
         assets.push(event.flat);
         expenses.push(event.expense);
-        if (event.income) incomes.push(event.income);
+        if (event.rental) incomes.push(event.income);
         break;
       }
       case 'take_personal_loan': {

@@ -38,7 +38,6 @@ const mortgage: TakeMortgageEvent = {
     amount: { amount: 28_388, currency: 'CZK' },
     frequency: 'monthly',
   },
-  income: null,
 };
 
 const rentalMortgage: TakeMortgageEvent = {
