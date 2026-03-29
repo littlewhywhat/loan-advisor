@@ -113,6 +113,11 @@ export type EventStore = {
   events: FinanceEvent[];
 };
 
+export type Strategy = {
+  name: string;
+  events: NewEventInput[];
+};
+
 export type DerivedState = {
   assets: Asset[];
   liabilities: Liability[];

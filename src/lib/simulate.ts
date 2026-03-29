@@ -1,5 +1,5 @@
 import { toMonthly } from '@/lib/format';
-import type { FinanceEvent } from '@/types/events';
+import type { FinanceEvent, NewEventInput } from '@/types/events';
 import { deriveState } from '@/lib/deriveState';
 
 export type SimulatorConfig = {
@@ -13,6 +13,7 @@ export type AssetSnapshot = {
   name: string;
   kind: 'flat' | 'cash';
   value: number;
+  isStrategy?: boolean;
 };
 
 export type LiabilitySnapshot = {
@@ -20,12 +21,14 @@ export type LiabilitySnapshot = {
   name: string;
   kind: 'loan' | 'mortgage';
   balance: number;
+  isStrategy?: boolean;
 };
 
 export type IncomeLineItem = {
   id: string;
   name: string;
   monthlyAmount: number;
+  isStrategy?: boolean;
 };
 
 export type ExpenseLineItem = {
@@ -33,6 +36,7 @@ export type ExpenseLineItem = {
   name: string;
   monthlyAmount: number;
   active: boolean;
+  isStrategy?: boolean;
 };
 
 export type MonthSnapshot = {
@@ -54,7 +58,17 @@ export type MonthSnapshot = {
 };
 
 export type SimulationResult = {
-  snapshots: MonthSnapshot[];
+  baseline: MonthSnapshot[];
+  strategy: MonthSnapshot[] | null;
+};
+
+type AssetState = {
+  id: string;
+  name: string;
+  kind: 'flat' | 'cash';
+  value: number;
+  growthRate: number;
+  isStrategy: boolean;
 };
 
 type LiabilityState = {
@@ -66,6 +80,23 @@ type LiabilityState = {
   monthlyPayment: number;
   linkedExpenseId: string | null;
   paidOff: boolean;
+  isStrategy: boolean;
+};
+
+type ScheduledEvent = {
+  month: number;
+  year: number;
+  event: FinanceEvent;
+};
+
+type LoopState = {
+  assetStates: AssetState[];
+  liabilityStates: LiabilityState[];
+  incomeItems: IncomeLineItem[];
+  expenseItems: ExpenseLineItem[];
+  paidOffExpenseIds: Set<string>;
+  cashReserve: number;
+  accumulatedDeficit: number;
 };
 
 function monthsBetween(startDate: string, endDate: string): number {
@@ -128,12 +159,135 @@ function elapsedMonthsFromDate(startDate: string, now: Date): number {
   return Math.max(0, months);
 }
 
-export function runSimulation(
+function injectEvent(
+  event: FinanceEvent,
+  state: LoopState,
+): void {
+  switch (event.type) {
+    case 'add_income':
+      state.incomeItems.push({
+        id: event.income.id,
+        name: event.income.name,
+        monthlyAmount: Math.round(toMonthly(event.income.amount.amount, event.income.frequency)),
+        isStrategy: true,
+      });
+      break;
+    case 'add_expense':
+      state.expenseItems.push({
+        id: event.expense.id,
+        name: event.expense.name,
+        monthlyAmount: Math.round(toMonthly(event.expense.amount.amount, event.expense.frequency)),
+        active: true,
+        isStrategy: true,
+      });
+      break;
+    case 'add_asset':
+      state.assetStates.push({
+        id: event.asset.id,
+        name: event.asset.name,
+        kind: event.asset.kind,
+        value: event.asset.value.amount,
+        growthRate: event.asset.growthRate,
+        isStrategy: true,
+      });
+      break;
+    case 'take_mortgage': {
+      const principal = event.mortgage.value.amount;
+      const totalLoanMonths = monthsBetween(event.mortgage.startDate, event.mortgage.endDate);
+      const mp = computeMonthlyPayment(principal, event.mortgage.interestRate, totalLoanMonths);
+      state.liabilityStates.push({
+        id: event.mortgage.id,
+        name: event.mortgage.name,
+        kind: 'mortgage',
+        balance: principal,
+        interestRate: event.mortgage.interestRate,
+        monthlyPayment: mp,
+        linkedExpenseId: event.expense.id,
+        paidOff: false,
+        isStrategy: true,
+      });
+      state.assetStates.push({
+        id: event.flat.id,
+        name: event.flat.name,
+        kind: 'flat',
+        value: event.flat.value.amount,
+        growthRate: event.flat.growthRate,
+        isStrategy: true,
+      });
+      state.expenseItems.push({
+        id: event.expense.id,
+        name: event.expense.name,
+        monthlyAmount: Math.round(toMonthly(event.expense.amount.amount, event.expense.frequency)),
+        active: true,
+        isStrategy: true,
+      });
+      if (event.rental) {
+        state.incomeItems.push({
+          id: event.income.id,
+          name: event.income.name,
+          monthlyAmount: Math.round(toMonthly(event.income.amount.amount, event.income.frequency)),
+          isStrategy: true,
+        });
+      }
+      break;
+    }
+    case 'take_personal_loan': {
+      const principal = event.loan.value.amount;
+      const totalLoanMonths = monthsBetween(event.loan.startDate, event.loan.endDate);
+      const mp = computeMonthlyPayment(principal, event.loan.interestRate, totalLoanMonths);
+      state.liabilityStates.push({
+        id: event.loan.id,
+        name: event.loan.name,
+        kind: 'loan',
+        balance: principal,
+        interestRate: event.loan.interestRate,
+        monthlyPayment: mp,
+        linkedExpenseId: event.expense.id,
+        paidOff: false,
+        isStrategy: true,
+      });
+      state.assetStates.push({
+        id: event.cash.id,
+        name: event.cash.name,
+        kind: 'cash',
+        value: event.cash.value.amount,
+        growthRate: 0,
+        isStrategy: true,
+      });
+      state.expenseItems.push({
+        id: event.expense.id,
+        name: event.expense.name,
+        monthlyAmount: Math.round(toMonthly(event.expense.amount.amount, event.expense.frequency)),
+        active: true,
+        isStrategy: true,
+      });
+      break;
+    }
+    case 'manual_correction':
+      break;
+  }
+}
+
+function buildScheduleMap(events: ScheduledEvent[]): Map<string, ScheduledEvent[]> {
+  const map = new Map<string, ScheduledEvent[]>();
+  for (const se of events) {
+    const key = `${se.year}-${se.month}`;
+    const list = map.get(key) ?? [];
+    list.push(se);
+    map.set(key, list);
+  }
+  return map;
+}
+
+function projectSnapshots(
   events: FinanceEvent[],
   config: SimulatorConfig,
-): SimulationResult {
+  scheduledEvents: ScheduledEvent[] = [],
+  strategyEntityIds: Set<string> = new Set(),
+): MonthSnapshot[] {
   const { assets, liabilities, incomes, expenses } = deriveState(events);
   const liabilityExpenseMap = buildLiabilityExpenseMap(events);
+  const scheduleMap = buildScheduleMap(scheduledEvents);
 
   const now = new Date();
   const startMonth = now.getMonth() + 1;
@@ -142,57 +296,65 @@ export function runSimulation(
     (config.targetYear - startYear) * 12 +
     (config.targetMonth - startMonth);
 
-  if (totalMonths <= 0) return { snapshots: [] };
+  if (totalMonths <= 0) return [];
 
-  const assetStates = assets.map((a) => ({
-    id: a.id,
-    name: a.name,
-    kind: a.kind,
-    value: a.value.amount,
-    growthRate: a.growthRate,
-  }));
+  const state: LoopState = {
+    assetStates: assets.map((a) => ({
+      id: a.id,
+      name: a.name,
+      kind: a.kind,
+      value: a.value.amount,
+      growthRate: a.growthRate,
+      isStrategy: strategyEntityIds.has(a.id),
+    })),
+    liabilityStates: liabilities.map((l) => {
+      const principal = l.value.amount;
+      const totalLoanMonths = monthsBetween(l.startDate, l.endDate);
+      const mp = computeMonthlyPayment(principal, l.interestRate, totalLoanMonths);
+      const elapsed = elapsedMonthsFromDate(l.startDate, now);
+      const balance = computeRemainingBalance(principal, l.interestRate, mp, elapsed);
+      return {
+        id: l.id,
+        name: l.name,
+        kind: l.kind,
+        balance,
+        interestRate: l.interestRate,
+        monthlyPayment: mp,
+        linkedExpenseId: liabilityExpenseMap.get(l.id) ?? null,
+        paidOff: balance <= 0,
+        isStrategy: strategyEntityIds.has(l.id),
+      };
+    }),
+    incomeItems: incomes.map((inc) => ({
+      id: inc.id,
+      name: inc.name,
+      monthlyAmount: Math.round(toMonthly(inc.amount.amount, inc.frequency)),
+      isStrategy: strategyEntityIds.has(inc.id),
+    })),
+    expenseItems: expenses.map((exp) => ({
+      id: exp.id,
+      name: exp.name,
+      monthlyAmount: Math.round(toMonthly(exp.amount.amount, exp.frequency)),
+      active: true,
+      isStrategy: strategyEntityIds.has(exp.id),
+    })),
+    paidOffExpenseIds: new Set<string>(),
+    cashReserve: 0,
+    accumulatedDeficit: 0,
+  };
 
-  const liabilityStates: LiabilityState[] = liabilities.map((l) => {
-    const principal = l.value.amount;
-    const totalLoanMonths = monthsBetween(l.startDate, l.endDate);
-    const mp = computeMonthlyPayment(principal, l.interestRate, totalLoanMonths);
-    const elapsed = elapsedMonthsFromDate(l.startDate, now);
-    const balance = computeRemainingBalance(principal, l.interestRate, mp, elapsed);
-    return {
-      id: l.id,
-      name: l.name,
-      kind: l.kind,
-      balance,
-      interestRate: l.interestRate,
-      monthlyPayment: mp,
-      linkedExpenseId: liabilityExpenseMap.get(l.id) ?? null,
-      paidOff: balance <= 0,
-    };
-  });
-
-  const incomeItems: IncomeLineItem[] = incomes.map((inc) => ({
-    id: inc.id,
-    name: inc.name,
-    monthlyAmount: Math.round(toMonthly(inc.amount.amount, inc.frequency)),
-  }));
-
-  const expenseItems: ExpenseLineItem[] = expenses.map((exp) => ({
-    id: exp.id,
-    name: exp.name,
-    monthlyAmount: Math.round(toMonthly(exp.amount.amount, exp.frequency)),
-    active: true,
-  }));
-
-  const paidOffExpenseIds = new Set<string>();
-  let cashReserve = 0;
-  let accumulatedDeficit = 0;
   const snapshots: MonthSnapshot[] = [];
 
   for (let i = 1; i <= totalMonths; i++) {
     const m = ((startMonth - 1 + i) % 12) + 1;
     const y = startYear + Math.floor((startMonth - 1 + i) / 12);
 
-    for (const ls of liabilityStates) {
+    const due = scheduleMap.get(`${y}-${m}`);
+    if (due) {
+      for (const se of due) injectEvent(se.event, state);
+    }
+
+    for (const ls of state.liabilityStates) {
       if (ls.paidOff) continue;
       const r = ls.interestRate / 12;
       const interest = ls.balance * r;
@@ -200,16 +362,16 @@ export function runSimulation(
       ls.balance = Math.max(0, ls.balance - principalPortion);
       if (ls.balance <= 0) {
         ls.paidOff = true;
-        if (ls.linkedExpenseId) paidOffExpenseIds.add(ls.linkedExpenseId);
+        if (ls.linkedExpenseId) state.paidOffExpenseIds.add(ls.linkedExpenseId);
       }
     }
 
-    const currentExpenses = expenseItems.map((e) => ({
+    const currentExpenses = state.expenseItems.map((e) => ({
       ...e,
-      active: !paidOffExpenseIds.has(e.id),
+      active: !state.paidOffExpenseIds.has(e.id),
     }));
 
-    const totalIncome = incomeItems.reduce((sum, inc) => sum + inc.monthlyAmount, 0);
+    const totalIncome = state.incomeItems.reduce((sum, inc) => sum + inc.monthlyAmount, 0);
     const totalExpensesVal = currentExpenses
       .filter((e) => e.active)
       .reduce((sum, exp) => sum + exp.monthlyAmount, 0);
@@ -217,21 +379,21 @@ export function runSimulation(
     const cashFlow = totalIncome - totalExpensesVal;
 
     if (cashFlow >= 0) {
-      cashReserve += cashFlow;
+      state.cashReserve += cashFlow;
     } else {
-      accumulatedDeficit += Math.abs(cashFlow);
+      state.accumulatedDeficit += Math.abs(cashFlow);
     }
 
-    for (const a of assetStates) {
+    for (const a of state.assetStates) {
       a.value *= 1 + a.growthRate / 12;
     }
 
-    cashReserve *= 1 + config.cashReserveGrowthRate / 12;
+    state.cashReserve *= 1 + config.cashReserveGrowthRate / 12;
 
-    const totalAssets = assetStates.reduce((sum, a) => sum + a.value, 0);
-    const totalLiabilitiesVal = liabilityStates.reduce((sum, l) => sum + l.balance, 0);
+    const totalAssets = state.assetStates.reduce((sum, a) => sum + a.value, 0);
+    const totalLiabilitiesVal = state.liabilityStates.reduce((sum, l) => sum + l.balance, 0);
     const netWorth =
-      totalAssets + cashReserve - totalLiabilitiesVal - accumulatedDeficit;
+      totalAssets + state.cashReserve - totalLiabilitiesVal - state.accumulatedDeficit;
 
     snapshots.push({
       month: m,
@@ -241,26 +403,98 @@ export function runSimulation(
       totalExpenses: Math.round(totalExpensesVal),
       cashFlow: Math.round(cashFlow),
       totalAssets: Math.round(totalAssets),
-      cashReserve: Math.round(cashReserve),
+      cashReserve: Math.round(state.cashReserve),
       totalLiabilities: Math.round(totalLiabilitiesVal),
-      accumulatedDeficit: Math.round(accumulatedDeficit),
+      accumulatedDeficit: Math.round(state.accumulatedDeficit),
       netWorth: Math.round(netWorth),
-      assets: assetStates.map((a) => ({
+      assets: state.assetStates.map((a) => ({
         id: a.id,
         name: a.name,
         kind: a.kind,
         value: Math.round(a.value),
+        isStrategy: a.isStrategy || undefined,
       })),
-      liabilities: liabilityStates.map((l) => ({
+      liabilities: state.liabilityStates.map((l) => ({
         id: l.id,
         name: l.name,
         kind: l.kind,
         balance: Math.round(l.balance),
+        isStrategy: l.isStrategy || undefined,
       })),
-      incomes: [...incomeItems],
-      expenses: currentExpenses,
+      incomes: state.incomeItems.map((inc) => ({
+        ...inc,
+        isStrategy: inc.isStrategy || undefined,
+      })),
+      expenses: currentExpenses.map((exp) => ({
+        ...exp,
+        isStrategy: exp.isStrategy || undefined,
+      })),
     });
   }
 
-  return { snapshots };
+  return snapshots;
+}
+
+function collectEntityIds(event: FinanceEvent): string[] {
+  switch (event.type) {
+    case 'add_income': return [event.income.id];
+    case 'add_expense': return [event.expense.id];
+    case 'add_asset': return [event.asset.id];
+    case 'take_mortgage': {
+      const ids = [event.mortgage.id, event.flat.id, event.expense.id];
+      if (event.rental) ids.push(event.income.id);
+      return ids;
+    }
+    case 'take_personal_loan': return [event.loan.id, event.cash.id, event.expense.id];
+    case 'manual_correction': return [];
+  }
+}
+
+export function runSimulation(
+  events: FinanceEvent[],
+  config: SimulatorConfig,
+  strategyInputs: NewEventInput[] = [],
+): SimulationResult {
+  const baseline = projectSnapshots(events, config);
+
+  if (strategyInputs.length === 0) {
+    return { baseline, strategy: null };
+  }
+
+  const now = new Date();
+  const startMonth = now.getMonth() + 1;
+  const startYear = now.getFullYear();
+
+  const strategyAsEvents = strategyInputs.map((e) => ({
+    ...e,
+    id: crypto.randomUUID(),
+    status: 'active' as const,
+  })) as FinanceEvent[];
+
+  const strategyEntityIds = new Set(
+    strategyAsEvents.flatMap(collectEntityIds),
+  );
+
+  const immediateEvents: FinanceEvent[] = [];
+  const scheduledEvents: ScheduledEvent[] = [];
+
+  for (const e of strategyAsEvents) {
+    const d = new Date(e.date);
+    const eMonth = d.getMonth() + 1;
+    const eYear = d.getFullYear();
+    if (eYear < startYear || (eYear === startYear && eMonth <= startMonth)) {
+      immediateEvents.push(e);
+    } else {
+      scheduledEvents.push({ month: eMonth, year: eYear, event: e });
+    }
+  }
+
+  const strategy = projectSnapshots(
+    [...events, ...immediateEvents],
+    config,
+    scheduledEvents,
+    strategyEntityIds,
+  );
+
+  return { baseline, strategy };
 }

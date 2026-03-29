@@ -18,6 +18,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import StrategyPanel from '@/components/StrategyPanel';
 import { useEvents } from '@/context/EventProvider';
 import { formatMoney } from '@/lib/format';
 import {
@@ -25,6 +26,7 @@ import {
   type MonthSnapshot,
   type SimulatorConfig,
 } from '@/lib/simulate';
+import { useStrategyStore } from '@/hooks/useStrategyStore';
 
 const SYNC_ID = 'simulator-sync';
 
@@ -49,38 +51,76 @@ function formatLabel(snapshots: MonthSnapshot[], i: number | string): string {
   return `${snap.month}/${snap.year}`;
 }
 
+type CombinedPoint = MonthSnapshot & {
+  strategyValue?: number | null;
+};
+
+function mergeForChart(
+  baseline: MonthSnapshot[],
+  strategy: MonthSnapshot[] | null,
+  dataKey: keyof MonthSnapshot,
+): CombinedPoint[] {
+  return baseline.map((b, i) => ({
+    ...b,
+    strategyValue: strategy ? (strategy[i]?.[dataKey] as number) ?? null : null,
+  }));
+}
+
 function SimpleChart({
   title,
   dataKey,
-  snapshots,
+  baseline,
+  strategy,
   color,
   showZeroLine,
   selectedMonthIndex,
 }: {
   title: string;
   dataKey: keyof MonthSnapshot;
-  snapshots: MonthSnapshot[];
+  baseline: MonthSnapshot[];
+  strategy: MonthSnapshot[] | null;
   color: string;
   showZeroLine?: boolean;
   selectedMonthIndex: number | null;
 }) {
+  const data = useMemo(
+    () => mergeForChart(baseline, strategy, dataKey),
+    [baseline, strategy, dataKey],
+  );
+  const hasStrategy = strategy != null && strategy.length > 0;
+
   return (
     <Card>
-      <Heading size="3" mb="3">
-        {title}
-      </Heading>
+      <Flex justify="between" align="center" mb="3">
+        <Heading size="3">{title}</Heading>
+        {hasStrategy && (
+          <Flex gap="3" align="center">
+            <Flex align="center" gap="1">
+              <div style={{ width: 16, height: 2, background: color }} />
+              <Text size="1" color="gray">Baseline</Text>
+            </Flex>
+            <Flex align="center" gap="1">
+              <div style={{ width: 16, height: 0, borderTop: `2px dashed ${color}`, opacity: 0.6 }} />
+              <Text size="1" color="gray">Strategy</Text>
+            </Flex>
+          </Flex>
+        )}
+      </Flex>
       <ResponsiveContainer width="100%" height={250}>
-        <LineChart data={snapshots} syncId={SYNC_ID}>
+        <LineChart data={data} syncId={SYNC_ID}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
             dataKey="monthIndex"
-            tickFormatter={(i) => formatLabel(snapshots, i)}
-            interval={Math.max(Math.floor(snapshots.length / 10) - 1, 0)}
+            tickFormatter={(i) => formatLabel(baseline, i)}
+            interval={Math.max(Math.floor(baseline.length / 10) - 1, 0)}
           />
           <YAxis tickFormatter={formatYAxisValue} />
           <Tooltip
-            formatter={(value) => [formatMoney(Number(value ?? 0)), title]}
-            labelFormatter={(i) => formatLabel(snapshots, i)}
+            formatter={(value, name) => [
+              formatMoney(Number(value ?? 0)),
+              name === 'strategyValue' ? `${title} (Strategy)` : title,
+            ]}
+            labelFormatter={(i) => formatLabel(baseline, i)}
           />
           <Line
             type="monotone"
@@ -90,6 +130,18 @@ function SimpleChart({
             dot={false}
             strokeWidth={2}
           />
+          {hasStrategy && (
+            <Line
+              type="monotone"
+              dataKey="strategyValue"
+              name="strategyValue"
+              stroke={color}
+              dot={false}
+              strokeWidth={2}
+              strokeDasharray="6 3"
+              opacity={0.6}
+            />
+          )}
           {showZeroLine && (
             <ReferenceLine y={0} stroke="var(--gray-8)" strokeDasharray="3 3" />
           )}
@@ -113,22 +165,31 @@ function Row({
   color,
   indent,
   strikethrough,
+  badge,
 }: {
   label: string;
   value: string;
   color?: 'green' | 'red' | 'gray';
   indent?: boolean;
   strikethrough?: boolean;
+  badge?: string;
 }) {
   return (
     <Flex justify="between" align="center" pl={indent ? '4' : '0'}>
-      <Text
-        size="2"
-        color={indent ? 'gray' : undefined}
-        style={strikethrough ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
-      >
-        {label}
-      </Text>
+      <Flex align="center" gap="2">
+        <Text
+          size="2"
+          color={indent ? 'gray' : undefined}
+          style={strikethrough ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
+        >
+          {label}
+        </Text>
+        {badge && (
+          <Badge size="1" variant="soft" color="purple">
+            {badge}
+          </Badge>
+        )}
+      </Flex>
       <Text
         size="2"
         weight="bold"
@@ -163,6 +224,7 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
                   label={inc.name}
                   value={`${fmt(inc.monthlyAmount)}/mo`}
                   indent
+                  badge={inc.isStrategy ? 'strategy' : undefined}
                 />
               ))}
             </>
@@ -188,6 +250,7 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
                   value={`${fmt(exp.monthlyAmount)}/mo`}
                   indent
                   strikethrough={!exp.active}
+                  badge={exp.isStrategy ? 'strategy' : undefined}
                 />
               ))}
             </>
@@ -227,6 +290,9 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
                 <Badge size="1" variant="soft">
                   {a.kind}
                 </Badge>
+                {a.isStrategy && (
+                  <Badge size="1" variant="soft" color="purple">strategy</Badge>
+                )}
               </Flex>
               <Text size="2" weight="bold">
                 {fmt(a.value)}
@@ -264,6 +330,9 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
                 <Badge size="1" variant="soft">
                   {l.kind}
                 </Badge>
+                {l.isStrategy && (
+                  <Badge size="1" variant="soft" color="purple">strategy</Badge>
+                )}
               </Flex>
               <Text size="2" weight="bold">
                 {fmt(l.balance)}
@@ -313,7 +382,14 @@ function findSnapshotIndex(
 }
 
 export default function SimulatorPage() {
-  const { events } = useEvents();
+  const { events, addEvent, mode } = useEvents();
+  const {
+    strategy,
+    addStrategyEvent,
+    removeStrategyEvent,
+    clearStrategy,
+  } = useStrategyStore(mode);
+
   const defaults = useDefaultConfig();
   const [targetMonth, setTargetMonth] = useState(defaults.targetMonth);
   const [targetYear, setTargetYear] = useState(defaults.targetYear);
@@ -331,15 +407,24 @@ export default function SimulatorPage() {
   );
 
   const result = useMemo(
-    () => runSimulation(events, config),
-    [events, config],
+    () => runSimulation(events, config, strategy.events),
+    [events, config, strategy.events],
   );
 
-  const hasData = result.snapshots.length > 0;
+  const hasData = result.baseline.length > 0;
+  const hasStrategy = result.strategy != null && result.strategy.length > 0;
 
-  const viewIndex = findSnapshotIndex(result.snapshots, viewMonth, viewYear);
-  const selectedSnapshot = viewIndex != null ? result.snapshots[viewIndex] : null;
+  const activeSnapshots = hasStrategy ? (result.strategy ?? result.baseline) : result.baseline;
+  const viewIndex = findSnapshotIndex(activeSnapshots, viewMonth, viewYear);
+  const selectedSnapshot = viewIndex != null ? activeSnapshots[viewIndex] : null;
   const selectedMonthIndex = selectedSnapshot?.monthIndex ?? null;
+
+  const handleApply = () => {
+    for (const event of strategy.events) {
+      addEvent(event);
+    }
+    clearStrategy();
+  };
 
   return (
     <Flex direction="column" gap="5">
@@ -444,6 +529,14 @@ export default function SimulatorPage() {
         </Flex>
       </Card>
 
+      <StrategyPanel
+        strategy={strategy}
+        onAddEvent={addStrategyEvent}
+        onRemoveEvent={removeStrategyEvent}
+        onApply={handleApply}
+        onDiscard={clearStrategy}
+      />
+
       {!hasData && (
         <Card>
           <Text size="3" color="gray" align="center">
@@ -457,14 +550,16 @@ export default function SimulatorPage() {
           <SimpleChart
             title="Net Worth"
             dataKey="netWorth"
-            snapshots={result.snapshots}
+            baseline={result.baseline}
+            strategy={result.strategy}
             color="var(--accent-9)"
             selectedMonthIndex={selectedMonthIndex}
           />
           <SimpleChart
             title="Monthly Cash Flow"
             dataKey="cashFlow"
-            snapshots={result.snapshots}
+            baseline={result.baseline}
+            strategy={result.strategy}
             color="var(--green-9)"
             showZeroLine
             selectedMonthIndex={selectedMonthIndex}
@@ -472,7 +567,8 @@ export default function SimulatorPage() {
           <SimpleChart
             title="Cash Reserve"
             dataKey="cashReserve"
-            snapshots={result.snapshots}
+            baseline={result.baseline}
+            strategy={result.strategy}
             color="var(--blue-9)"
             selectedMonthIndex={selectedMonthIndex}
           />
