@@ -19,6 +19,9 @@ entity TakeMortgage {
 entity TakePersonalLoan {
 }
 
+entity AddAsset {
+}
+
 entity AddIncome {
 }
 
@@ -31,6 +34,7 @@ entity ManualCorrection {
 
 Event <|-- TakeMortgage
 Event <|-- TakePersonalLoan
+Event <|-- AddAsset
 Event <|-- AddIncome
 Event <|-- AddExpense
 Event <|-- ManualCorrection
@@ -43,6 +47,8 @@ TakeMortgage "0..1" *-- "1" Income : if rental
 TakePersonalLoan "1" *-- "1" Loan
 TakePersonalLoan "1" *-- "1" Cash
 TakePersonalLoan "1" *-- "1" Expense
+
+AddAsset "1" *-- "1" Asset
 
 AddIncome "1" *-- "1" Income
 AddExpense "1" *-- "1" Expense
