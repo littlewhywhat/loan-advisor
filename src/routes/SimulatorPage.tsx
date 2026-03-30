@@ -20,6 +20,7 @@ import {
 } from 'recharts';
 import StrategyPanel from '@/components/StrategyPanel';
 import { useEvents } from '@/context/EventProvider';
+import { deriveState } from '@/lib/deriveState';
 import { formatMoney } from '@/lib/format';
 import {
   runSimulation,
@@ -420,6 +421,16 @@ export default function SimulatorPage() {
     [events, config, strategy.events],
   );
 
+  const strategyDerived = useMemo(() => {
+    if (strategy.events.length === 0) return derived;
+    const strategyAsEvents = strategy.events.map((e) => ({
+      ...e,
+      id: crypto.randomUUID(),
+      status: 'active' as const,
+    })) as import('@/types/events').FinanceEvent[];
+    return deriveState([...events, ...strategyAsEvents]);
+  }, [events, strategy.events, derived]);
+
   const hasData = result.baseline.length > 0;
   const hasStrategy = result.strategy != null && result.strategy.length > 0;
 
@@ -551,9 +562,9 @@ export default function SimulatorPage() {
       <StrategyPanel
         strategy={strategy}
         events={events}
-        liabilities={derived.liabilities}
-        cashAssets={derived.assets.filter((a): a is import('@/types/events').Cash => a.kind === 'cash')}
-        expenses={derived.expenses}
+        liabilities={strategyDerived.liabilities}
+        cashAssets={strategyDerived.assets.filter((a): a is import('@/types/events').Cash => a.kind === 'cash')}
+        expenses={strategyDerived.expenses}
         baselineSnapshots={result.strategy ?? result.baseline}
         onAddEvent={addStrategyEvent}
         onUpdateEvent={updateStrategyEvent}
