@@ -11,10 +11,11 @@ import {
   Text,
   TextField,
 } from '@radix-ui/themes';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { monthlyPayment } from '@/lib/loanCalc';
 import {
+  assetFormFromEvent,
   buildAddAssetInput,
   buildAddExpenseInput,
   buildAddIncomeInput,
@@ -22,6 +23,7 @@ import {
   buildRepayLoanInput,
   buildTakeMortgageInput,
   buildTakePersonalLoanInput,
+  buyAssetFormFromEvent,
   describeEvent,
   emptyAssetForm,
   emptyBuyAssetForm,
@@ -30,7 +32,12 @@ import {
   emptyMortgageForm,
   emptyPersonalLoanForm,
   emptyRepayLoanForm,
+  expenseFormFromEvent,
   EVENT_TYPES,
+  incomeFormFromEvent,
+  mortgageFormFromEvent,
+  personalLoanFormFromEvent,
+  repayLoanFormFromEvent,
   type AssetFormData,
   type BuyAssetFormData,
   type ExpenseFormData,
@@ -55,6 +62,7 @@ type Props = {
   expenses: Expense[];
   baselineSnapshots: SnapshotLookup;
   onAddEvent: (event: NewEventInput) => void;
+  onUpdateEvent: (index: number, event: NewEventInput) => void;
   onRemoveEvent: (index: number) => void;
   onApply: () => void;
   onDiscard: () => void;
@@ -859,8 +867,9 @@ const TYPE_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange' | 'purple'
   'Repay Loan': 'purple',
 };
 
-export default function StrategyPanel({ strategy, events, liabilities, cashAssets, expenses, baselineSnapshots, onAddEvent, onRemoveEvent, onApply, onDiscard }: Props) {
+export default function StrategyPanel({ strategy, events, liabilities, cashAssets, expenses, baselineSnapshots, onAddEvent, onUpdateEvent, onRemoveEvent, onApply, onDiscard }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [eventType, setEventType] = useState<StrategyEventType>('add_income');
   const [date, setDate] = useState(todayStr);
   const [incomeForm, setIncomeForm] = useState(emptyIncomeForm);
@@ -882,6 +891,61 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
     setLoanForm(emptyPersonalLoanForm());
     setRepayForm(emptyRepayLoanForm());
     setBuyAssetForm(emptyBuyAssetForm());
+  };
+
+  const populateFormsFromEvent = (event: NewEventInput) => {
+    setEventType(event.type as StrategyEventType);
+    switch (event.type) {
+      case 'add_income': {
+        const { form, date: d } = incomeFormFromEvent(event);
+        setIncomeForm(form);
+        setDate(d);
+        break;
+      }
+      case 'add_expense': {
+        const { form, date: d } = expenseFormFromEvent(event);
+        setExpenseForm(form);
+        setDate(d);
+        break;
+      }
+      case 'add_asset': {
+        const { form, date: d } = assetFormFromEvent(event);
+        setAssetForm(form);
+        setDate(d);
+        break;
+      }
+      case 'take_mortgage': {
+        const { form } = mortgageFormFromEvent(event);
+        setMortgageForm(form);
+        break;
+      }
+      case 'take_personal_loan': {
+        const { form } = personalLoanFormFromEvent(event);
+        setLoanForm(form);
+        break;
+      }
+      case 'repay_loan': {
+        const { form, date: d } = repayLoanFormFromEvent(event);
+        setRepayForm(form);
+        setDate(d);
+        break;
+      }
+      case 'buy_asset': {
+        const { form, date: d } = buyAssetFormFromEvent(event);
+        setBuyAssetForm(form);
+        setDate(d);
+        break;
+      }
+    }
+  };
+
+  const handleEdit = (idx: number) => {
+    resetForms();
+    const event = strategy.events[idx];
+    if (!event) return;
+    populateFormsFromEvent(event);
+    setEditingIndex(idx);
+    setDialogOpen(true);
   };
 
   const handleSave = () => {
@@ -919,8 +983,13 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
         break;
     }
     if (input) {
-      onAddEvent(input);
+      if (editingIndex !== null) {
+        onUpdateEvent(editingIndex, input);
+      } else {
+        onAddEvent(input);
+      }
       resetForms();
+      setEditingIndex(null);
       setDialogOpen(false);
     }
   };
@@ -944,7 +1013,7 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
                   </Button>
                 </>
               )}
-              <Button size="1" onClick={() => { resetForms(); setDialogOpen(true); }}>
+              <Button size="1" onClick={() => { resetForms(); setEditingIndex(null); setDialogOpen(true); }}>
                 <Plus size={14} />
                 Add Event
               </Button>
@@ -978,9 +1047,14 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
                         {desc.date}
                       </Badge>
                     </Flex>
-                    <Button size="1" variant="ghost" color="red" onClick={() => onRemoveEvent(idx)}>
-                      <Trash2 size={14} />
-                    </Button>
+                    <Flex gap="1">
+                      <Button size="1" variant="ghost" onClick={() => handleEdit(idx)}>
+                        <Pencil size={14} />
+                      </Button>
+                      <Button size="1" variant="ghost" color="red" onClick={() => onRemoveEvent(idx)}>
+                        <Trash2 size={14} />
+                      </Button>
+                    </Flex>
                   </Flex>
                 );
               })}
@@ -991,11 +1065,11 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="520px">
-          <Dialog.Title>Add Strategy Event</Dialog.Title>
+          <Dialog.Title>{editingIndex !== null ? 'Edit Strategy Event' : 'Add Strategy Event'}</Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <div>
               <Text size="2" weight="medium" mb="1" asChild><span>Event Type</span></Text>
-              <Select.Root value={eventType} onValueChange={(v) => setEventType(v as StrategyEventType)}>
+              <Select.Root value={eventType} onValueChange={(v) => setEventType(v as StrategyEventType)} disabled={editingIndex !== null}>
                 <Select.Trigger style={{ width: '100%' }} />
                 <Select.Content>
                   {EVENT_TYPES.map((t) => (
@@ -1047,7 +1121,7 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
             <Dialog.Close>
               <Button variant="soft" color="gray">Cancel</Button>
             </Dialog.Close>
-            <Button onClick={handleSave}>Add to Strategy</Button>
+            <Button onClick={handleSave}>{editingIndex !== null ? 'Save Changes' : 'Add to Strategy'}</Button>
           </Flex>
         </Dialog.Content>
       </Dialog.Root>

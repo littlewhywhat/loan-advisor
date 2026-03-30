@@ -96,6 +96,26 @@ Feature: Simulator Strategy
     And the cash reserve shown reflects all previous strategy events
     And the user can compare available cash to the loan balance before deciding
 
+  Rule: User can edit strategy events
+
+  Scenario: Edit a strategy event
+    Given the strategy panel has an AddIncome event:
+      | name     | amount | currency | frequency | date       |
+      | Side Gig | 30000  | CZK      | monthly   | 2028-01-01 |
+    When the user clicks the edit button on that event
+    Then the dialog opens with the form pre-filled with the event data
+    And the event type selector is disabled
+    When the user changes the amount to 50000
+    And the user saves
+    Then the strategy panel shows the updated event with 50000 amount
+
+  Scenario: Edit preserves event position in strategy
+    Given the strategy panel has 3 events
+    When the user edits the second event
+    And the user saves
+    Then the second event is updated in place
+    And the first and third events are unchanged
+
   Rule: User can apply or discard a strategy
 
   Scenario: Apply strategy commits events

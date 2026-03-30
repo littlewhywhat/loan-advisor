@@ -313,6 +313,115 @@ export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEve
   return result;
 }
 
+export function incomeFormFromEvent(event: Extract<NewEventInput, { type: 'add_income' }>): { form: IncomeFormData; date: string } {
+  return {
+    form: {
+      name: event.income.name,
+      amount: event.income.amount.amount,
+      currency: event.income.amount.currency,
+      frequency: event.income.frequency,
+    },
+    date: event.date,
+  };
+}
+
+export function expenseFormFromEvent(event: Extract<NewEventInput, { type: 'add_expense' }>): { form: ExpenseFormData; date: string } {
+  return {
+    form: {
+      name: event.expense.name,
+      amount: event.expense.amount.amount,
+      currency: event.expense.amount.currency,
+      frequency: event.expense.frequency,
+    },
+    date: event.date,
+  };
+}
+
+export function assetFormFromEvent(event: Extract<NewEventInput, { type: 'add_asset' }>): { form: AssetFormData; date: string } {
+  return {
+    form: {
+      name: event.asset.name,
+      kind: event.asset.kind,
+      value: event.asset.value.amount,
+      currency: event.asset.value.currency,
+      growthRate: event.asset.growthRate * 100,
+    },
+    date: event.date,
+  };
+}
+
+export function mortgageFormFromEvent(event: Extract<NewEventInput, { type: 'take_mortgage' }>): { form: MortgageFormData } {
+  const termMonths = monthsBetween(event.mortgage.startDate, event.mortgage.endDate);
+  return {
+    form: {
+      name: event.flat.name,
+      loanValue: event.mortgage.value.amount,
+      downPayment: event.mortgage.downPayment.amount,
+      interestRate: event.mortgage.interestRate * 100,
+      currency: event.mortgage.value.currency,
+      startDate: event.mortgage.startDate,
+      termYears: Math.round(termMonths / 12),
+      growthRate: event.flat.growthRate * 100,
+      rental: event.rental,
+      rentalIncomeName: event.rental ? event.income.name : '',
+      rentalIncomeAmount: event.rental ? event.income.amount.amount : 0,
+    },
+  };
+}
+
+export function personalLoanFormFromEvent(event: Extract<NewEventInput, { type: 'take_personal_loan' }>): { form: PersonalLoanFormData } {
+  const termMonths = monthsBetween(event.loan.startDate, event.loan.endDate);
+  return {
+    form: {
+      name: event.loan.name.replace(/ Loan$/, ''),
+      loanValue: event.loan.value.amount,
+      interestRate: event.loan.interestRate * 100,
+      currency: event.loan.value.currency,
+      startDate: event.loan.startDate,
+      termYears: Math.round(termMonths / 12),
+    },
+  };
+}
+
+export function repayLoanFormFromEvent(event: Extract<NewEventInput, { type: 'repay_loan' }>): { form: RepayLoanFormData; date: string } {
+  return {
+    form: {
+      liabilityId: event.liabilityId,
+      expenseId: event.expenseId,
+      repaymentAmount: event.repaymentAmount.amount,
+      currency: event.repaymentAmount.currency,
+      strategy: event.strategy,
+      originalPrincipal: event.newPrincipal.amount + event.repaymentAmount.amount,
+      interestRate: 0,
+      loanStartDate: event.newStartDate,
+      loanEndDate: event.newEndDate,
+    },
+    date: event.date,
+  };
+}
+
+export function buyAssetFormFromEvent(event: Extract<NewEventInput, { type: 'buy_asset' }>): { form: BuyAssetFormData; date: string } {
+  return {
+    form: {
+      name: event.asset.name,
+      kind: event.asset.kind,
+      value: event.asset.value.amount,
+      currency: event.asset.value.currency,
+      growthRate: event.asset.growthRate * 100,
+      allocations: event.allocations.map((a) => ({
+        cashAssetId: a.cashAssetId,
+        amount: a.amount.amount,
+      })),
+      forLiving: event.forLiving ?? false,
+      removeExpenseId: event.removeExpenseId ?? '',
+      newExpenseName: event.newExpense?.name ?? '',
+      newExpenseAmount: event.newExpense?.amount.amount ?? 0,
+      newExpenseFrequency: event.newExpense?.frequency ?? 'monthly',
+    },
+    date: event.date,
+  };
+}
+
 const TYPE_LABELS: Record<string, string> = {
   add_income: 'Income',
   add_expense: 'Expense',

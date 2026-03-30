@@ -395,6 +395,7 @@ export default function SimulatorPage() {
     strategy,
     addStrategyEvent,
     removeStrategyEvent,
+    updateStrategyEvent,
     clearStrategy,
   } = useStrategyStore(mode);
 
@@ -555,6 +556,7 @@ export default function SimulatorPage() {
         expenses={derived.expenses}
         baselineSnapshots={result.strategy ?? result.baseline}
         onAddEvent={addStrategyEvent}
+        onUpdateEvent={updateStrategyEvent}
         onRemoveEvent={removeStrategyEvent}
         onApply={handleApply}
         onDiscard={clearStrategy}

@@ -44,6 +44,13 @@ export function useStrategyStore(mode: AppMode) {
     }));
   }, []);
 
+  const updateStrategyEvent = useCallback((index: number, event: NewEventInput) => {
+    setStrategy((prev) => ({
+      ...prev,
+      events: prev.events.map((e, i) => (i === index ? event : e)),
+    }));
+  }, []);
+
   const setStrategyName = useCallback((name: string) => {
     setStrategy((prev) => ({ ...prev, name }));
   }, []);
@@ -56,6 +63,7 @@ export function useStrategyStore(mode: AppMode) {
     strategy,
     addStrategyEvent,
     removeStrategyEvent,
+    updateStrategyEvent,
     setStrategyName,
     clearStrategy,
   };
