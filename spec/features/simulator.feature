@@ -36,6 +36,19 @@ Feature: Simulator
     And the balance sheet shows net worth
     And all charts display a reference line at the selected month
 
+  Scenario: Number inputs accept any value during editing and clamp on blur
+    Given the simulator header shows numeric fields for month, year, and growth rate
+    When the user types a value outside the valid range (e.g. year 20)
+    Then the input accepts the intermediate value while the user is typing
+    When the user leaves the field
+    Then the value is clamped to the nearest valid bound
+
+  Scenario: Scrolling does not change focused number inputs
+    Given a numeric input field is focused
+    When the user scrolls the page
+    Then the input value does not change
+    And the input loses focus
+
   Scenario: View snapshot outside simulation range shows warning
     Given a simulation running from today to December 2040
     When the user sets view snapshot to month 1, year 2050
