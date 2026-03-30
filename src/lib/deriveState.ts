@@ -8,6 +8,22 @@ import type {
   Liability,
 } from '@/types/events';
 
+function cloneAsset<T extends Asset>(a: T): T {
+  return { ...a, value: { ...a.value } };
+}
+
+function cloneLiability<T extends Liability>(l: T): T {
+  return { ...l, value: { ...l.value } };
+}
+
+function cloneIncome(i: Income): Income {
+  return { ...i, amount: { ...i.amount } };
+}
+
+function cloneExpense(e: Expense): Expense {
+  return { ...e, amount: { ...e.amount } };
+}
+
 export function deriveState(
   events: FinanceEvent[],
   status: EventStatus = 'active',
@@ -24,24 +40,24 @@ export function deriveState(
   for (const event of active) {
     switch (event.type) {
       case 'take_mortgage': {
-        liabilities.push(event.mortgage);
-        assets.push(event.flat);
-        expenses.push(event.expense);
-        if (event.rental) incomes.push(event.income);
+        liabilities.push(cloneLiability(event.mortgage));
+        assets.push(cloneAsset(event.flat));
+        expenses.push(cloneExpense(event.expense));
+        if (event.rental) incomes.push(cloneIncome(event.income));
         break;
       }
       case 'take_personal_loan': {
-        liabilities.push(event.loan);
-        assets.push(event.cash);
-        expenses.push(event.expense);
+        liabilities.push(cloneLiability(event.loan));
+        assets.push(cloneAsset(event.cash));
+        expenses.push(cloneExpense(event.expense));
         break;
       }
       case 'add_asset': {
-        assets.push(event.asset);
+        assets.push(cloneAsset(event.asset));
         break;
       }
       case 'buy_asset': {
-        assets.push(event.asset);
+        assets.push(cloneAsset(event.asset));
         for (const alloc of event.allocations) {
           const cash = assets.find((a) => a.id === alloc.cashAssetId);
           if (cash) {
@@ -56,16 +72,16 @@ export function deriveState(
           if (idx !== -1) expenses.splice(idx, 1);
         }
         if (event.newExpense) {
-          expenses.push(event.newExpense);
+          expenses.push(cloneExpense(event.newExpense));
         }
         break;
       }
       case 'add_income': {
-        incomes.push(event.income);
+        incomes.push(cloneIncome(event.income));
         break;
       }
       case 'add_expense': {
-        expenses.push(event.expense);
+        expenses.push(cloneExpense(event.expense));
         break;
       }
       case 'repay_loan': {

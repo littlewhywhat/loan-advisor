@@ -295,6 +295,7 @@ function injectEvent(
       break;
     }
     case 'repay_loan': {
+      state.cashReserve = Math.max(0, state.cashReserve - event.repaymentAmount.amount);
       const liability = state.liabilityStates.find((l) => l.id === event.liabilityId);
       if (liability) {
         liability.balance = event.newPrincipal.amount;

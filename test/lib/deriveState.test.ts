@@ -4,6 +4,7 @@ import type {
   AddAssetEvent,
   AddExpenseEvent,
   AddIncomeEvent,
+  BuyAssetEvent,
   FinanceEvent,
   ManualCorrectionEvent,
   TakeMortgageEvent,
@@ -159,6 +160,70 @@ const groceries: AddExpenseEvent = {
     amount: { amount: 8_000, currency: 'CZK' },
     frequency: 'monthly',
   },
+};
+
+const personalLoan2: TakePersonalLoanEvent = {
+  id: 'evt-8',
+  date: '2026-03-30',
+  status: 'active',
+  type: 'take_personal_loan',
+  loan: {
+    kind: 'loan',
+    id: 'loan-2',
+    name: 'Business Loan',
+    value: { amount: 2_850_000, currency: 'CZK' },
+    interestRate: 0.077,
+    startDate: '2026-03-30',
+    endDate: '2032-03-30',
+  },
+  cash: {
+    kind: 'cash',
+    id: 'cash-3',
+    name: 'Business Loan Cash',
+    value: { amount: 2_850_000, currency: 'CZK' },
+    growthRate: 0,
+  },
+  expense: {
+    id: 'exp-5',
+    name: 'Business Loan Payment',
+    amount: { amount: 49_553, currency: 'CZK' },
+    frequency: 'monthly',
+  },
+};
+
+const buyFlatWithTwoLoans: BuyAssetEvent = {
+  id: 'evt-9',
+  date: '2026-04-15',
+  status: 'active',
+  type: 'buy_asset',
+  asset: {
+    kind: 'flat',
+    id: 'flat-4',
+    name: 'Serbia Flat',
+    value: { amount: 3_000_000, currency: 'CZK' },
+    growthRate: 0.05,
+  },
+  allocations: [
+    { cashAssetId: 'cash-1', amount: { amount: 500_000, currency: 'CZK' } },
+    { cashAssetId: 'cash-3', amount: { amount: 2_500_000, currency: 'CZK' } },
+  ],
+};
+
+const buyFlatSingleLoan: BuyAssetEvent = {
+  id: 'evt-10',
+  date: '2026-04-15',
+  status: 'active',
+  type: 'buy_asset',
+  asset: {
+    kind: 'flat',
+    id: 'flat-5',
+    name: 'Studio',
+    value: { amount: 2_850_000, currency: 'CZK' },
+    growthRate: 0.03,
+  },
+  allocations: [
+    { cashAssetId: 'cash-3', amount: { amount: 2_850_000, currency: 'CZK' } },
+  ],
 };
 
 describe('deriveState', () => {
@@ -359,6 +424,59 @@ describe('deriveState', () => {
       const state = deriveState([groceries, correction]);
       expect(state.expenses[0].frequency).toBe('quarterly');
       expect(state.expenses[0].amount.amount).toBe(8_000);
+    });
+  });
+
+  describe('buy asset', () => {
+    it('reduces cash from single source and creates flat', () => {
+      const events: FinanceEvent[] = [personalLoan2, buyFlatSingleLoan];
+      const state = deriveState(events);
+
+      const flat = state.assets.find((a) => a.id === 'flat-5');
+      expect(flat).toBeDefined();
+      expect(flat!.value.amount).toBe(2_850_000);
+
+      const cash = state.assets.find((a) => a.id === 'cash-3');
+      expect(cash).toBeDefined();
+      expect(cash!.value.amount).toBe(0);
+    });
+
+    it('reduces cash from multiple sources', () => {
+      const events: FinanceEvent[] = [personalLoan, personalLoan2, buyFlatWithTwoLoans];
+      const state = deriveState(events);
+
+      const flat = state.assets.find((a) => a.id === 'flat-4');
+      expect(flat).toBeDefined();
+      expect(flat!.value.amount).toBe(3_000_000);
+
+      const cash1 = state.assets.find((a) => a.id === 'cash-1');
+      expect(cash1).toBeDefined();
+      expect(cash1!.value.amount).toBe(0);
+
+      const cash3 = state.assets.find((a) => a.id === 'cash-3');
+      expect(cash3).toBeDefined();
+      expect(cash3!.value.amount).toBe(350_000);
+    });
+
+    it('does not mutate original event objects', () => {
+      const events: FinanceEvent[] = [personalLoan2, buyFlatSingleLoan];
+      deriveState(events);
+
+      expect(personalLoan2.cash.value.amount).toBe(2_850_000);
+    });
+
+    it('returns identical results on consecutive calls', () => {
+      const events: FinanceEvent[] = [personalLoan, personalLoan2, buyFlatWithTwoLoans];
+      const first = deriveState(events);
+      const second = deriveState(events);
+
+      const firstCash1 = first.assets.find((a) => a.id === 'cash-1')!;
+      const secondCash1 = second.assets.find((a) => a.id === 'cash-1')!;
+      expect(firstCash1.value.amount).toBe(secondCash1.value.amount);
+
+      const firstCash3 = first.assets.find((a) => a.id === 'cash-3')!;
+      const secondCash3 = second.assets.find((a) => a.id === 'cash-3')!;
+      expect(firstCash3.value.amount).toBe(secondCash3.value.amount);
     });
   });
 

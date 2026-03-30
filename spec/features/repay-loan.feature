@@ -56,6 +56,21 @@ Feature: Repay Loan
     And the linked Expense amount remains 10138 CZK/monthly
     And a RepayLoan event is created with status ACTIVE
 
+  Scenario: Repayment deducts from cash reserve in simulation
+    Given the user has an active Loan with:
+      | field         | value      |
+      | name          | Car Loan   |
+      | loan_value    | 500000     |
+      | interest_rate | 8.0        |
+      | currency      | CZK        |
+      | start_date    | 2025-01-01 |
+      | end_date      | 2030-01-01 |
+    And the loan has a linked Expense "Car Loan Payment" of 10138 CZK/monthly
+    And the simulator has accumulated a cash reserve
+    When a RepayLoan strategy event is scheduled with repayment_amount 200000 CZK
+    Then the cash reserve is reduced by 200000 at the month the repayment occurs
+    And the loan balance and monthly payment are updated per the chosen strategy
+
   Scenario: Full payoff
     Given the user has an active Loan with:
       | field         | value      |

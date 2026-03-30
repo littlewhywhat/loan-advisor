@@ -281,24 +281,28 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
           <Text size="2" weight="bold" color="gray">
             Assets
           </Text>
-          {snapshot.assets.map((a) => (
-            <Flex key={a.id} justify="between" align="center" pl="4">
-              <Flex align="center" gap="2">
-                <Text size="2" color="gray">
-                  {a.name}
+          {snapshot.assets.map((a) => {
+            const depleted = a.value === 0;
+            const style = depleted ? { textDecoration: 'line-through' as const, opacity: 0.5 } : undefined;
+            return (
+              <Flex key={a.id} justify="between" align="center" pl="4">
+                <Flex align="center" gap="2">
+                  <Text size="2" color="gray" style={style}>
+                    {a.name}
+                  </Text>
+                  <Badge size="1" variant="soft">
+                    {a.kind}
+                  </Badge>
+                  {a.isStrategy && (
+                    <Badge size="1" variant="soft" color="purple">strategy</Badge>
+                  )}
+                </Flex>
+                <Text size="2" weight="bold" style={style}>
+                  {fmt(a.value)}
                 </Text>
-                <Badge size="1" variant="soft">
-                  {a.kind}
-                </Badge>
-                {a.isStrategy && (
-                  <Badge size="1" variant="soft" color="purple">strategy</Badge>
-                )}
               </Flex>
-              <Text size="2" weight="bold">
-                {fmt(a.value)}
-              </Text>
-            </Flex>
-          ))}
+            );
+          })}
           {snapshot.cashReserve > 0 && (
             <Flex justify="between" align="center" pl="4">
               <Flex align="center" gap="2">
@@ -321,24 +325,28 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
           <Text size="2" weight="bold" color="gray">
             Liabilities
           </Text>
-          {snapshot.liabilities.map((l) => (
-            <Flex key={l.id} justify="between" align="center" pl="4">
-              <Flex align="center" gap="2">
-                <Text size="2" color="gray">
-                  {l.name}
+          {snapshot.liabilities.map((l) => {
+            const paidOff = l.balance === 0;
+            const style = paidOff ? { textDecoration: 'line-through' as const, opacity: 0.5 } : undefined;
+            return (
+              <Flex key={l.id} justify="between" align="center" pl="4">
+                <Flex align="center" gap="2">
+                  <Text size="2" color="gray" style={style}>
+                    {l.name}
+                  </Text>
+                  <Badge size="1" variant="soft">
+                    {l.kind}
+                  </Badge>
+                  {l.isStrategy && (
+                    <Badge size="1" variant="soft" color="purple">strategy</Badge>
+                  )}
+                </Flex>
+                <Text size="2" weight="bold" style={style}>
+                  {fmt(l.balance)}
                 </Text>
-                <Badge size="1" variant="soft">
-                  {l.kind}
-                </Badge>
-                {l.isStrategy && (
-                  <Badge size="1" variant="soft" color="purple">strategy</Badge>
-                )}
               </Flex>
-              <Text size="2" weight="bold">
-                {fmt(l.balance)}
-              </Text>
-            </Flex>
-          ))}
+            );
+          })}
           {snapshot.accumulatedDeficit > 0 && (
             <Flex justify="between" align="center" pl="4">
               <Flex align="center" gap="2">
