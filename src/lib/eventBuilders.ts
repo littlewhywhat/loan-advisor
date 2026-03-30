@@ -14,6 +14,7 @@ export type IncomeFormData = {
   amount: number;
   currency: Currency;
   frequency: Frequency;
+  existingIncomeId?: string;
 };
 
 export type ExpenseFormData = {
@@ -21,6 +22,7 @@ export type ExpenseFormData = {
   amount: number;
   currency: Currency;
   frequency: Frequency;
+  existingExpenseId?: string;
 };
 
 export type AssetFormData = {
@@ -29,6 +31,7 @@ export type AssetFormData = {
   value: number;
   currency: Currency;
   growthRate: number;
+  existingAssetId?: string;
 };
 
 export type MortgageFormData = {
@@ -43,6 +46,10 @@ export type MortgageFormData = {
   rental: boolean;
   rentalIncomeName: string;
   rentalIncomeAmount: number;
+  existingMortgageId?: string;
+  existingFlatId?: string;
+  existingExpenseId?: string;
+  existingIncomeId?: string;
 };
 
 export type PersonalLoanFormData = {
@@ -52,6 +59,9 @@ export type PersonalLoanFormData = {
   currency: Currency;
   startDate: string;
   termYears: number;
+  existingLoanId?: string;
+  existingCashId?: string;
+  existingExpenseId?: string;
 };
 
 export type RepayLoanFormData = {
@@ -83,6 +93,8 @@ export type BuyAssetFormData = {
   newExpenseName: string;
   newExpenseAmount: number;
   newExpenseFrequency: Frequency;
+  existingAssetId?: string;
+  existingNewExpenseId?: string;
 };
 
 function uid(): string {
@@ -115,7 +127,7 @@ export function buildAddIncomeInput(form: IncomeFormData, date: string): NewEven
     type: 'add_income',
     date,
     income: {
-      id: uid(),
+      id: form.existingIncomeId ?? uid(),
       name: form.name,
       amount: { amount: form.amount, currency: form.currency },
       frequency: form.frequency,
@@ -128,7 +140,7 @@ export function buildAddExpenseInput(form: ExpenseFormData, date: string): NewEv
     type: 'add_expense',
     date,
     expense: {
-      id: uid(),
+      id: form.existingExpenseId ?? uid(),
       name: form.name,
       amount: { amount: form.amount, currency: form.currency },
       frequency: form.frequency,
@@ -141,7 +153,7 @@ export function buildAddAssetInput(form: AssetFormData, date: string): NewEventI
     type: 'add_asset',
     date,
     asset: {
-      id: uid(),
+      id: form.existingAssetId ?? uid(),
       name: form.name,
       kind: form.kind,
       value: { amount: form.value, currency: form.currency },
@@ -161,7 +173,7 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
     type: 'take_mortgage' as const,
     date: form.startDate,
     mortgage: {
-      id: uid(),
+      id: form.existingMortgageId ?? uid(),
       name: `${form.name} Mortgage`,
       kind: 'mortgage' as const,
       value: { amount: form.loanValue, currency },
@@ -171,14 +183,14 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
       downPayment: { amount: form.downPayment, currency },
     },
     flat: {
-      id: uid(),
+      id: form.existingFlatId ?? uid(),
       name: form.name,
       kind: 'flat' as const,
       value: { amount: flatValue, currency },
       growthRate: form.growthRate / 100,
     },
     expense: {
-      id: uid(),
+      id: form.existingExpenseId ?? uid(),
       name: `${form.name} Payment`,
       amount: { amount: mp, currency },
       frequency: 'monthly' as Frequency,
@@ -190,7 +202,7 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
       ...base,
       rental: true,
       income: {
-        id: uid(),
+        id: form.existingIncomeId ?? uid(),
         name: form.rentalIncomeName || `${form.name} Rent`,
         amount: { amount: form.rentalIncomeAmount, currency },
         frequency: 'monthly' as Frequency,
@@ -211,7 +223,7 @@ export function buildTakePersonalLoanInput(form: PersonalLoanFormData): NewEvent
     type: 'take_personal_loan',
     date: form.startDate,
     loan: {
-      id: uid(),
+      id: form.existingLoanId ?? uid(),
       name: `${form.name} Loan`,
       kind: 'loan' as const,
       value: { amount: form.loanValue, currency },
@@ -220,14 +232,14 @@ export function buildTakePersonalLoanInput(form: PersonalLoanFormData): NewEvent
       endDate,
     },
     cash: {
-      id: uid(),
+      id: form.existingCashId ?? uid(),
       name: `${form.name} Cash`,
       kind: 'cash' as const,
       value: { amount: form.loanValue, currency },
       growthRate: 0,
     },
     expense: {
-      id: uid(),
+      id: form.existingExpenseId ?? uid(),
       name: `${form.name} Payment`,
       amount: { amount: mp, currency },
       frequency: 'monthly' as const,
@@ -286,7 +298,7 @@ export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEve
     type: 'buy_asset',
     date,
     asset: {
-      id: uid(),
+      id: form.existingAssetId ?? uid(),
       name: form.name,
       kind: form.kind,
       value: { amount: form.value, currency },
@@ -302,7 +314,7 @@ export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEve
     result.forLiving = true;
     if (form.newExpenseName.trim() && form.newExpenseAmount > 0) {
       result.newExpense = {
-        id: uid(),
+        id: form.existingNewExpenseId ?? uid(),
         name: form.newExpenseName,
         amount: { amount: form.newExpenseAmount, currency },
         frequency: form.newExpenseFrequency,
@@ -320,6 +332,7 @@ export function incomeFormFromEvent(event: Extract<NewEventInput, { type: 'add_i
       amount: event.income.amount.amount,
       currency: event.income.amount.currency,
       frequency: event.income.frequency,
+      existingIncomeId: event.income.id,
     },
     date: event.date,
   };
@@ -332,6 +345,7 @@ export function expenseFormFromEvent(event: Extract<NewEventInput, { type: 'add_
       amount: event.expense.amount.amount,
       currency: event.expense.amount.currency,
       frequency: event.expense.frequency,
+      existingExpenseId: event.expense.id,
     },
     date: event.date,
   };
@@ -345,6 +359,7 @@ export function assetFormFromEvent(event: Extract<NewEventInput, { type: 'add_as
       value: event.asset.value.amount,
       currency: event.asset.value.currency,
       growthRate: event.asset.growthRate * 100,
+      existingAssetId: event.asset.id,
     },
     date: event.date,
   };
@@ -365,6 +380,10 @@ export function mortgageFormFromEvent(event: Extract<NewEventInput, { type: 'tak
       rental: event.rental,
       rentalIncomeName: event.rental ? event.income.name : '',
       rentalIncomeAmount: event.rental ? event.income.amount.amount : 0,
+      existingMortgageId: event.mortgage.id,
+      existingFlatId: event.flat.id,
+      existingExpenseId: event.expense.id,
+      existingIncomeId: event.rental ? event.income.id : undefined,
     },
   };
 }
@@ -379,6 +398,9 @@ export function personalLoanFormFromEvent(event: Extract<NewEventInput, { type: 
       currency: event.loan.value.currency,
       startDate: event.loan.startDate,
       termYears: Math.round(termMonths / 12),
+      existingLoanId: event.loan.id,
+      existingCashId: event.cash.id,
+      existingExpenseId: event.expense.id,
     },
   };
 }
@@ -417,6 +439,8 @@ export function buyAssetFormFromEvent(event: Extract<NewEventInput, { type: 'buy
       newExpenseName: event.newExpense?.name ?? '',
       newExpenseAmount: event.newExpense?.amount.amount ?? 0,
       newExpenseFrequency: event.newExpense?.frequency ?? 'monthly',
+      existingAssetId: event.asset.id,
+      existingNewExpenseId: event.newExpense?.id,
     },
     date: event.date,
   };

@@ -289,10 +289,15 @@ function buildScheduleMap(events: ScheduledEvent[]): Map<string, FinanceEvent[]>
 function projectSnapshots(
   events: FinanceEvent[],
   config: SimulatorConfig,
+  immediateStrategyEvents: FinanceEvent[] = [],
   scheduledEvents: ScheduledEvent[] = [],
   strategyEntityIds: Set<string> = new Set(),
 ): MonthSnapshot[] {
-  const allEvents = [...events, ...scheduledEvents.map((se) => se.event)];
+  const allEvents = [
+    ...events,
+    ...immediateStrategyEvents,
+    ...scheduledEvents.map((se) => se.event),
+  ];
   const liabilityExpenseMap = buildLiabilityExpenseMap(allEvents);
   const scheduleMap = buildScheduleMap(scheduledEvents);
 
@@ -305,6 +310,11 @@ function projectSnapshots(
   if (totalMonths <= 0) return [];
 
   const state = initSimState(events, liabilityExpenseMap);
+
+  if (immediateStrategyEvents.length > 0) {
+    injectScheduledEvents(state, immediateStrategyEvents, liabilityExpenseMap);
+  }
+
   const snapshots: MonthSnapshot[] = [];
 
   for (let i = 1; i <= totalMonths; i++) {
@@ -384,8 +394,9 @@ export function runSimulation(
   }
 
   const strategy = projectSnapshots(
-    [...events, ...immediateEvents],
+    events,
     config,
+    immediateEvents,
     scheduledEvents,
     strategyEntityIds,
   );
