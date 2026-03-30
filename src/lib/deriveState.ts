@@ -24,20 +24,26 @@ function cloneExpense(e: Expense): Expense {
   return { ...e, amount: { ...e.amount } };
 }
 
-export function deriveState(
+export function emptyState(): DerivedState {
+  return { assets: [], liabilities: [], incomes: [], expenses: [] };
+}
+
+export function cloneState(state: DerivedState): DerivedState {
+  return {
+    assets: state.assets.map(cloneAsset),
+    liabilities: state.liabilities.map(cloneLiability),
+    incomes: state.incomes.map(cloneIncome),
+    expenses: state.expenses.map(cloneExpense),
+  };
+}
+
+export function applyEvents(
+  state: DerivedState,
   events: FinanceEvent[],
-  status: EventStatus = 'active',
 ): DerivedState {
-  const active = events
-    .filter((e) => e.status === status)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const { assets, liabilities, incomes, expenses } = cloneState(state);
 
-  const assets: Asset[] = [];
-  const liabilities: Liability[] = [];
-  const incomes: Income[] = [];
-  const expenses: Expense[] = [];
-
-  for (const event of active) {
+  for (const event of events) {
     switch (event.type) {
       case 'take_mortgage': {
         liabilities.push(cloneLiability(event.mortgage));
@@ -110,6 +116,16 @@ export function deriveState(
   }
 
   return { assets, liabilities, incomes, expenses };
+}
+
+export function deriveState(
+  events: FinanceEvent[],
+  status: EventStatus = 'active',
+): DerivedState {
+  const active = events
+    .filter((e) => e.status === status)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return applyEvents(emptyState(), active);
 }
 
 type EntityMap = {
