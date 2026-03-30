@@ -60,10 +60,13 @@ export function computeLoanDerived(
   annualRate: number,
   startDate: string,
   endDate: string,
+  asOfDate?: string,
 ): { monthlyPayment: number; currentBalance: number } {
   const total = monthsBetween(startDate, endDate);
   const mp = monthlyPaymentFromMonths(originalAmount, annualRate, total);
-  const elapsed = elapsedMonths(startDate);
+  const elapsed = asOfDate
+    ? monthsBetween(startDate, asOfDate)
+    : elapsedMonths(startDate);
   const cb = remainingBalance(originalAmount, annualRate, mp, elapsed);
   return { monthlyPayment: Math.round(mp), currentBalance: cb };
 }

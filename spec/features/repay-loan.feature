@@ -71,6 +71,24 @@ Feature: Repay Loan
     Then the cash reserve is reduced by 200000 at the month the repayment occurs
     And the loan balance and monthly payment are updated per the chosen strategy
 
+  Rule: Repay loan form shows projected values at selected date
+
+  Scenario: Form preview shows loan balance and cash reserve at repayment date
+    Given the user has an active Loan with:
+      | field         | value      |
+      | name          | Car Loan   |
+      | loan_value    | 500000     |
+      | interest_rate | 8.0        |
+      | currency      | CZK        |
+      | start_date    | 2025-01-01 |
+      | end_date      | 2030-01-01 |
+    And the simulator has accumulated a cash reserve
+    When the user opens the RepayLoan form and selects the loan
+    And the user sets the repayment date to 2027-01-01
+    Then the form shows the loan balance projected to 2027-01-01
+    And the form shows the cash reserve projected to January 2027
+    And both values reflect any previously added strategy events
+
   Scenario: Full payoff
     Given the user has an active Loan with:
       | field         | value      |

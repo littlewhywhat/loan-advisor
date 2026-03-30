@@ -455,8 +455,10 @@ export default function SimulatorPage() {
                 value={String(targetMonth)}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10);
-                  if (v >= 1 && v <= 12) setTargetMonth(v);
+                  if (!Number.isNaN(v)) setTargetMonth(v);
                 }}
+                onBlur={() => setTargetMonth((v) => Math.max(1, Math.min(12, v)))}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
             <Flex direction="column" gap="1" style={{ width: 120 }}>
@@ -470,8 +472,10 @@ export default function SimulatorPage() {
                 value={String(targetYear)}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10);
-                  if (v >= new Date().getFullYear() && v <= 2100) setTargetYear(v);
+                  if (!Number.isNaN(v)) setTargetYear(v);
                 }}
+                onBlur={() => setTargetYear((v) => Math.max(new Date().getFullYear(), Math.min(2100, v)))}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
             <Flex direction="column" gap="1" style={{ width: 180 }}>
@@ -486,8 +490,10 @@ export default function SimulatorPage() {
                 value={String(cashReserveGrowthRate)}
                 onChange={(e) => {
                   const v = parseFloat(e.target.value);
-                  if (!Number.isNaN(v) && v >= 0 && v <= 100) setCashReserveGrowthRate(v);
+                  if (!Number.isNaN(v)) setCashReserveGrowthRate(v);
                 }}
+                onBlur={() => setCashReserveGrowthRate((v) => Math.max(0, Math.min(100, v)))}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
           </Flex>
@@ -509,8 +515,10 @@ export default function SimulatorPage() {
                 value={String(viewMonth)}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10);
-                  if (v >= 1 && v <= 12) setViewMonth(v);
+                  if (!Number.isNaN(v)) setViewMonth(v);
                 }}
+                onBlur={() => setViewMonth((v) => Math.max(1, Math.min(12, v)))}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
             <Flex direction="column" gap="1" style={{ width: 120 }}>
@@ -524,8 +532,10 @@ export default function SimulatorPage() {
                 value={String(viewYear)}
                 onChange={(e) => {
                   const v = parseInt(e.target.value, 10);
-                  if (v >= new Date().getFullYear() && v <= 2100) setViewYear(v);
+                  if (!Number.isNaN(v)) setViewYear(v);
                 }}
+                onBlur={() => setViewYear((v) => Math.max(new Date().getFullYear(), Math.min(2100, v)))}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
             {viewIndex == null && hasData && (
@@ -543,6 +553,7 @@ export default function SimulatorPage() {
         liabilities={derived.liabilities}
         cashAssets={derived.assets.filter((a): a is import('@/types/events').Cash => a.kind === 'cash')}
         expenses={derived.expenses}
+        baselineSnapshots={result.strategy ?? result.baseline}
         onAddEvent={addStrategyEvent}
         onRemoveEvent={removeStrategyEvent}
         onApply={handleApply}

@@ -45,12 +45,15 @@ import { findOwnerEvent } from '@/lib/eventUtils';
 import { computeLoanDerived } from '@/lib/loanCalc';
 import type { Asset, Cash, Currency, Expense, FinanceEvent, Frequency, Liability, NewEventInput, RepayLoanStrategy, Strategy } from '@/types/events';
 
+type SnapshotLookup = { month: number; year: number; cashReserve: number; liabilities: { id: string; balance: number }[] }[];
+
 type Props = {
   strategy: Strategy;
   events: FinanceEvent[];
   liabilities: Liability[];
   cashAssets: Cash[];
   expenses: Expense[];
+  baselineSnapshots: SnapshotLookup;
   onAddEvent: (event: NewEventInput) => void;
   onRemoveEvent: (index: number) => void;
   onApply: () => void;
@@ -495,6 +498,7 @@ function RepayLoanFields({
   onDateChange,
   liabilities,
   events,
+  baselineSnapshots,
 }: {
   form: RepayLoanFormData;
   onChange: (f: RepayLoanFormData) => void;
@@ -502,6 +506,7 @@ function RepayLoanFields({
   onDateChange: (d: string) => void;
   liabilities: Liability[];
   events: FinanceEvent[];
+  baselineSnapshots: SnapshotLookup;
 }) {
   const handleLiabilityChange = (liabilityId: string) => {
     const liability = liabilities.find((l) => l.id === liabilityId);
@@ -523,15 +528,25 @@ function RepayLoanFields({
   };
 
   const preview = useMemo(() => {
-    if (!form.liabilityId || form.repaymentAmount <= 0 || !date) return null;
-    const { currentBalance } = computeLoanDerived(
-      form.originalPrincipal,
-      form.interestRate,
-      form.loanStartDate,
-      form.loanEndDate,
-    );
-    return { currentBalance };
-  }, [form.liabilityId, form.originalPrincipal, form.interestRate, form.loanStartDate, form.loanEndDate, form.repaymentAmount, date]);
+    if (!form.liabilityId || !date) return null;
+    const d = new Date(date);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    const snap = baselineSnapshots.find((s) => s.year === y && s.month === m);
+    const snapLiability = snap?.liabilities.find((l) => l.id === form.liabilityId);
+    const loanBalance = snapLiability?.balance ?? null;
+    if (loanBalance == null) {
+      const { currentBalance } = computeLoanDerived(
+        form.originalPrincipal,
+        form.interestRate,
+        form.loanStartDate,
+        form.loanEndDate,
+        date,
+      );
+      return { currentBalance, cashReserve: snap?.cashReserve ?? null };
+    }
+    return { currentBalance: loanBalance, cashReserve: snap?.cashReserve ?? null };
+  }, [form.liabilityId, form.originalPrincipal, form.interestRate, form.loanStartDate, form.loanEndDate, date, baselineSnapshots]);
 
   return (
     <>
@@ -578,11 +593,21 @@ function RepayLoanFields({
       </Flex>
       {preview && (
         <Card variant="surface">
-          <Flex direction="column">
-            <Text size="1" color="gray">Current Balance</Text>
-            <Text size="3" weight="bold">
-              {formatMoney(preview.currentBalance, form.currency)}
-            </Text>
+          <Flex gap="4">
+            <Flex direction="column" style={{ flex: 1 }}>
+              <Text size="1" color="gray">Loan Balance at {date}</Text>
+              <Text size="3" weight="bold">
+                {formatMoney(preview.currentBalance, form.currency)}
+              </Text>
+            </Flex>
+            {preview.cashReserve != null && (
+              <Flex direction="column" style={{ flex: 1 }}>
+                <Text size="1" color="gray">Cash Reserve at {date}</Text>
+                <Text size="3" weight="bold" color="green">
+                  {formatMoney(preview.cashReserve, form.currency)}
+                </Text>
+              </Flex>
+            )}
           </Flex>
         </Card>
       )}
@@ -834,7 +859,7 @@ const TYPE_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange' | 'purple'
   'Repay Loan': 'purple',
 };
 
-export default function StrategyPanel({ strategy, events, liabilities, cashAssets, expenses, onAddEvent, onRemoveEvent, onApply, onDiscard }: Props) {
+export default function StrategyPanel({ strategy, events, liabilities, cashAssets, expenses, baselineSnapshots, onAddEvent, onRemoveEvent, onApply, onDiscard }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [eventType, setEventType] = useState<StrategyEventType>('add_income');
   const [date, setDate] = useState(todayStr);
@@ -1013,6 +1038,7 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
                 onDateChange={setDate}
                 liabilities={liabilities}
                 events={events}
+                baselineSnapshots={baselineSnapshots}
               />
             )}
           </Flex>

@@ -73,6 +73,29 @@ Feature: Simulator Strategy
     When the simulator runs
     Then each chart shows only the baseline line
 
+  Rule: Balance sheet shows depleted and paid-off entities as struck through
+
+  Scenario: Zero-value assets appear struck through
+    Given an active TakePersonalLoan event with cash value 500000 CZK
+    And a strategy BuyAsset event that allocates all 500000 from that cash
+    When the user views a snapshot after the buy date
+    Then the cash asset appears struck through with value 0 in the balance sheet
+
+  Scenario: Paid-off liabilities appear struck through
+    Given an active TakePersonalLoan event with loan value 500000 CZK
+    And a strategy RepayLoan event that fully pays off the loan
+    When the user views a snapshot after the repayment date
+    Then the loan appears struck through with balance 0 in the balance sheet
+
+  Rule: Strategy event forms use simulation projections for context
+
+  Scenario: RepayLoan form shows projected values from strategy simulation
+    Given the user has added strategy events that affect cash reserve and liabilities
+    When the user opens the RepayLoan form and selects a date
+    Then the loan balance shown reflects all previous strategy repayments
+    And the cash reserve shown reflects all previous strategy events
+    And the user can compare available cash to the loan balance before deciding
+
   Rule: User can apply or discard a strategy
 
   Scenario: Apply strategy commits events

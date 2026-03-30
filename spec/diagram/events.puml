@@ -34,6 +34,7 @@ entity ManualCorrection {
 
 entity RepayLoan {
   * liabilityId : uuid <<FK>>
+  * expenseId : uuid <<FK>>
   * repaymentAmount : MoneyAmount
   * strategy : reduce_payment | reduce_term
   --
@@ -73,6 +74,7 @@ AddIncome "1" *-- "1" Income
 AddExpense "1" *-- "1" Expense
 
 RepayLoan "1" --> "1" Liability : targets
+RepayLoan "1" --> "1" Expense : updates
 
 BuyAsset "1" *-- "1" Asset
 BuyAsset "1" *-- "1..*" CashAllocation
