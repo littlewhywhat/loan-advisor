@@ -96,7 +96,44 @@ Feature: Simulator Strategy
     And the cash reserve shown reflects all previous strategy events
     And the user can compare available cash to the loan balance before deciding
 
+  Rule: Strategy events with cross-references process in insertion order
+
+  Scenario: Buy asset using cash created by a strategy loan
+    Given an active AddIncome event:
+      | name   | amount | currency | frequency |
+      | Salary | 80000  | CZK      | monthly   |
+    And a strategy event of type TakePersonalLoan:
+      | name     | loan_value | interest_rate | start_date | term_years |
+      | Business | 2600000    | 7.7           | 2026-04-01 | 6          |
+    And a strategy event of type BuyAsset that allocates all 2600000 from the loan cash:
+      | name        | kind | value   | currency | growth_rate | date       |
+      | Serbia Flat | flat | 2600000 | CZK      | 3.0         | 2026-04-15 |
+    When the simulator runs
+    Then the strategy projection shows "Business Cash" with value 0
+    And the strategy projection shows "Serbia Flat" as an asset
+
+  Scenario: Insertion order is preserved even when buy date precedes loan date
+    Given a strategy event of type TakePersonalLoan added first:
+      | name     | loan_value | interest_rate | start_date | term_years |
+      | Business | 2600000    | 7.7           | 2026-04-01 | 6          |
+    And a strategy event of type BuyAsset added second with an earlier date:
+      | name        | kind | value   | currency | growth_rate | date       |
+      | Serbia Flat | flat | 2600000 | CZK      | 3.0         | 2026-03-30 |
+    And the BuyAsset allocates all from the TakePersonalLoan cash
+    When the simulator runs
+    Then the loan cash is fully deducted despite the buy date being earlier
+    Because strategy events are applied in insertion order, not date order
+
   Rule: User can edit strategy events
+
+  Scenario: Edit preserves nested entity IDs for cross-references
+    Given a strategy TakePersonalLoan event creating cash "Business Cash"
+    And a strategy BuyAsset event allocating from "Business Cash"
+    When the user edits the TakePersonalLoan and changes the interest rate
+    And the user saves
+    Then the TakePersonalLoan cash entity retains its original ID
+    And the BuyAsset allocation still references the correct cash
+    And the simulation correctly deducts the cash when buying the asset
 
   Scenario: Edit a strategy event
     Given the strategy panel has an AddIncome event:
