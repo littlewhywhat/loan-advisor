@@ -8,44 +8,99 @@ import type {
   Liability,
 } from '@/types/events';
 
-export function deriveState(
+function cloneAsset<T extends Asset>(a: T): T {
+  return { ...a, value: { ...a.value } };
+}
+
+function cloneLiability<T extends Liability>(l: T): T {
+  return { ...l, value: { ...l.value } };
+}
+
+function cloneIncome(i: Income): Income {
+  return { ...i, amount: { ...i.amount } };
+}
+
+function cloneExpense(e: Expense): Expense {
+  return { ...e, amount: { ...e.amount } };
+}
+
+export function emptyState(): DerivedState {
+  return { assets: [], liabilities: [], incomes: [], expenses: [] };
+}
+
+export function cloneState(state: DerivedState): DerivedState {
+  return {
+    assets: state.assets.map(cloneAsset),
+    liabilities: state.liabilities.map(cloneLiability),
+    incomes: state.incomes.map(cloneIncome),
+    expenses: state.expenses.map(cloneExpense),
+  };
+}
+
+export function applyEvents(
+  state: DerivedState,
   events: FinanceEvent[],
-  status: EventStatus = 'active',
 ): DerivedState {
-  const active = events
-    .filter((e) => e.status === status)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const { assets, liabilities, incomes, expenses } = cloneState(state);
 
-  const assets: Asset[] = [];
-  const liabilities: Liability[] = [];
-  const incomes: Income[] = [];
-  const expenses: Expense[] = [];
-
-  for (const event of active) {
+  for (const event of events) {
     switch (event.type) {
       case 'take_mortgage': {
-        liabilities.push(event.mortgage);
-        assets.push(event.flat);
-        expenses.push(event.expense);
-        if (event.rental) incomes.push(event.income);
+        liabilities.push(cloneLiability(event.mortgage));
+        assets.push(cloneAsset(event.flat));
+        expenses.push(cloneExpense(event.expense));
+        if (event.rental) incomes.push(cloneIncome(event.income));
         break;
       }
       case 'take_personal_loan': {
-        liabilities.push(event.loan);
-        assets.push(event.cash);
-        expenses.push(event.expense);
+        liabilities.push(cloneLiability(event.loan));
+        assets.push(cloneAsset(event.cash));
+        expenses.push(cloneExpense(event.expense));
         break;
       }
       case 'add_asset': {
-        assets.push(event.asset);
+        assets.push(cloneAsset(event.asset));
+        break;
+      }
+      case 'buy_asset': {
+        assets.push(cloneAsset(event.asset));
+        for (const alloc of event.allocations) {
+          const cash = assets.find((a) => a.id === alloc.cashAssetId);
+          if (cash) {
+            cash.value = {
+              ...cash.value,
+              amount: Math.max(0, cash.value.amount - alloc.amount.amount),
+            };
+          }
+        }
+        if (event.removeExpenseId) {
+          const idx = expenses.findIndex((e) => e.id === event.removeExpenseId);
+          if (idx !== -1) expenses.splice(idx, 1);
+        }
+        if (event.newExpense) {
+          expenses.push(cloneExpense(event.newExpense));
+        }
         break;
       }
       case 'add_income': {
-        incomes.push(event.income);
+        incomes.push(cloneIncome(event.income));
         break;
       }
       case 'add_expense': {
-        expenses.push(event.expense);
+        expenses.push(cloneExpense(event.expense));
+        break;
+      }
+      case 'repay_loan': {
+        const liability = liabilities.find((l) => l.id === event.liabilityId);
+        if (liability) {
+          liability.value = event.newPrincipal;
+          liability.startDate = event.newStartDate;
+          liability.endDate = event.newEndDate;
+        }
+        const expense = expenses.find((e) => e.id === event.expenseId);
+        if (expense) {
+          expense.amount = event.newMonthlyPayment;
+        }
         break;
       }
       case 'manual_correction': {
@@ -61,6 +116,16 @@ export function deriveState(
   }
 
   return { assets, liabilities, incomes, expenses };
+}
+
+export function deriveState(
+  events: FinanceEvent[],
+  status: EventStatus = 'active',
+): DerivedState {
+  const active = events
+    .filter((e) => e.status === status)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return applyEvents(emptyState(), active);
 }
 
 type EntityMap = {

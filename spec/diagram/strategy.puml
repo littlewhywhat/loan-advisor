@@ -1,0 +1,19 @@
+@startuml simulator-strategy
+
+entity Strategy {
+  * name : string
+  --
+  * events : Event[]
+}
+
+note right of Strategy
+  Sandbox of planned events.
+  Lives in simulator localStorage.
+  Applied on user confirmation,
+  at which point events become
+  active in the EventStore.
+end note
+
+Strategy "1" o-- "0..*" Event : stages
+
+@enduml

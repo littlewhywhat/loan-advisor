@@ -95,13 +95,43 @@ export type ManualCorrectionEvent = EventBase & {
   changes: Record<string, unknown>;
 };
 
+export type CashAllocation = {
+  cashAssetId: string;
+  amount: MoneyAmount;
+};
+
+export type BuyAssetEvent = EventBase & {
+  type: 'buy_asset';
+  asset: Asset;
+  allocations: CashAllocation[];
+  forLiving?: boolean;
+  removeExpenseId?: string;
+  newExpense?: Expense;
+};
+
+export type RepayLoanStrategy = 'reduce_payment' | 'reduce_term';
+
+export type RepayLoanEvent = EventBase & {
+  type: 'repay_loan';
+  liabilityId: string;
+  expenseId: string;
+  repaymentAmount: MoneyAmount;
+  strategy: RepayLoanStrategy;
+  newPrincipal: MoneyAmount;
+  newStartDate: string;
+  newEndDate: string;
+  newMonthlyPayment: MoneyAmount;
+};
+
 export type FinanceEvent =
   | TakeMortgageEvent
   | TakePersonalLoanEvent
   | AddAssetEvent
+  | BuyAssetEvent
   | AddIncomeEvent
   | AddExpenseEvent
-  | ManualCorrectionEvent;
+  | ManualCorrectionEvent
+  | RepayLoanEvent;
 
 type DistributiveOmit<T, K extends keyof never> = T extends unknown
   ? Omit<T, K>
@@ -111,6 +141,11 @@ export type NewEventInput = DistributiveOmit<FinanceEvent, 'id' | 'status'>;
 
 export type EventStore = {
   events: FinanceEvent[];
+};
+
+export type Strategy = {
+  name: string;
+  events: NewEventInput[];
 };
 
 export type DerivedState = {

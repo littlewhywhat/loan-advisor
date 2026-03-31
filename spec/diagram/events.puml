@@ -32,12 +32,32 @@ entity ManualCorrection {
   * changes : jsonb
 }
 
+entity RepayLoan {
+  * liabilityId : uuid <<FK>>
+  * expenseId : uuid <<FK>>
+  * repaymentAmount : MoneyAmount
+  * strategy : reduce_payment | reduce_term
+  --
+  * newPrincipal : MoneyAmount
+  * newStartDate : date
+  * newEndDate : date
+  * newMonthlyPayment : MoneyAmount
+}
+
+entity BuyAsset {
+  * allocations : CashAllocation[]
+  forLiving : boolean
+  removeExpenseId : uuid <<FK>>
+}
+
 Event <|-- TakeMortgage
 Event <|-- TakePersonalLoan
 Event <|-- AddAsset
 Event <|-- AddIncome
 Event <|-- AddExpense
 Event <|-- ManualCorrection
+Event <|-- RepayLoan
+Event <|-- BuyAsset
 
 TakeMortgage "1" *-- "1" Mortgage
 TakeMortgage "1" *-- "1" Flat
@@ -52,5 +72,13 @@ AddAsset "1" *-- "1" Asset
 
 AddIncome "1" *-- "1" Income
 AddExpense "1" *-- "1" Expense
+
+RepayLoan "1" --> "1" Liability : targets
+RepayLoan "1" --> "1" Expense : updates
+
+BuyAsset "1" *-- "1" Asset
+BuyAsset "1" *-- "1..*" CashAllocation
+BuyAsset "0..1" *-- "1" Expense : if forLiving
+BuyAsset "0..1" --> "1" Expense : removes
 
 @enduml
