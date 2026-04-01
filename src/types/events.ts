@@ -144,8 +144,16 @@ export type EventStore = {
 };
 
 export type Strategy = {
+  id: string;
   name: string;
   events: NewEventInput[];
+};
+
+export const MAX_STRATEGIES = 4;
+
+export type StrategyLibrary = {
+  strategies: Strategy[];
+  activeId: string | null;
 };
 
 export type DerivedState = {

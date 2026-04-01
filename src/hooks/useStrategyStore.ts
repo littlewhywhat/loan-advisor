@@ -6,7 +6,7 @@ function storageKey(mode: AppMode): string {
   return mode === 'dev' ? 'strategy-dev' : 'strategy-prod';
 }
 
-const EMPTY_STRATEGY: Strategy = { name: '', events: [] };
+const EMPTY_STRATEGY: Strategy = { id: '', name: '', events: [] };
 
 function loadStrategy(mode: AppMode): Strategy {
   try {

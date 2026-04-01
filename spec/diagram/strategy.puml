@@ -1,19 +1,33 @@
 @startuml simulator-strategy
 
+entity StrategyLibrary {
+  * strategies : Strategy[0..4]
+  * activeId : uuid | null
+}
+
 entity Strategy {
+  * id : uuid <<PK>>
   * name : string
   --
   * events : Event[]
 }
 
+note right of StrategyLibrary
+  Up to 4 named strategies.
+  Lives in simulator localStorage.
+  activeId = strategy being edited.
+  All strategies are always visible
+  in comparison view.
+end note
+
 note right of Strategy
   Sandbox of planned events.
-  Lives in simulator localStorage.
   Applied on user confirmation,
   at which point events become
   active in the EventStore.
 end note
 
+StrategyLibrary "1" o-- "0..*" Strategy : contains
 Strategy "1" o-- "0..*" Event : stages
 
 @enduml
