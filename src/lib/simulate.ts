@@ -6,7 +6,7 @@ import {
   remainingBalance,
 } from '@/lib/loanCalc';
 import { applyEvents, deriveState } from '@/lib/deriveState';
-import type { DerivedState, FinanceEvent, NewEventInput } from '@/types/events';
+import type { DerivedState, FinanceEvent, NewEventInput, Strategy } from '@/types/events';
 
 export type SimulatorConfig = {
   targetMonth: number;
@@ -402,4 +402,34 @@ export function runSimulation(
   );
 
   return { baseline, strategy };
+}
+
+export type StrategyProjection = {
+  id: string;
+  name: string;
+  snapshots: MonthSnapshot[];
+};
+
+export type MultiStrategyResult = {
+  baseline: MonthSnapshot[];
+  strategies: StrategyProjection[];
+};
+
+export function runMultiStrategySimulation(
+  events: FinanceEvent[],
+  config: SimulatorConfig,
+  strategies: Strategy[],
+): MultiStrategyResult {
+  const baseline = projectSnapshots(events, config);
+
+  const projections: StrategyProjection[] = [];
+  for (const s of strategies) {
+    if (s.events.length === 0) continue;
+    const result = runSimulation(events, config, s.events);
+    if (result.strategy) {
+      projections.push({ id: s.id, name: s.name, snapshots: result.strategy });
+    }
+  }
+
+  return { baseline, strategies: projections };
 }

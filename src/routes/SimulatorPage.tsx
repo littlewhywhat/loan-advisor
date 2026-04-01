@@ -1,13 +1,16 @@
 import {
   Badge,
+  Button,
   Card,
   Flex,
   Heading,
+  IconButton,
   Separator,
   Text,
   TextField,
 } from '@radix-ui/themes';
-import { useMemo, useState } from 'react';
+import { Copy, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -23,13 +26,32 @@ import { useEvents } from '@/context/EventProvider';
 import { deriveState } from '@/lib/deriveState';
 import { formatMoney } from '@/lib/format';
 import {
-  runSimulation,
+  runMultiStrategySimulation,
   type MonthSnapshot,
+  type MultiStrategyResult,
   type SimulatorConfig,
+  type StrategyProjection,
 } from '@/lib/simulate';
-import { useStrategyStore } from '@/hooks/useStrategyStore';
+import { useStrategyLibrary } from '@/hooks/useStrategyLibrary';
+import { MAX_STRATEGIES } from '@/types/events';
+import type { Cash } from '@/types/events';
 
 const SYNC_ID = 'simulator-sync';
+const MOBILE_QUERY = '(max-width: 768px)';
+
+function subscribe(cb: () => void) {
+  const mql = window.matchMedia(MOBILE_QUERY);
+  mql.addEventListener('change', cb);
+  return () => mql.removeEventListener('change', cb);
+}
+
+function getIsMobile() {
+  return window.matchMedia(MOBILE_QUERY).matches;
+}
+
+function useIsMobile() {
+  return useSyncExternalStore(subscribe, getIsMobile, () => false);
+}
 
 function useDefaultConfig(): SimulatorConfig {
   const now = new Date();
@@ -390,15 +412,192 @@ function findSnapshotIndex(
   return idx >= 0 ? idx : null;
 }
 
+function StrategyColumn({
+  projection,
+  baseline,
+  selectedMonthIndex,
+  viewMonth,
+  viewYear,
+}: {
+  projection: StrategyProjection;
+  baseline: MonthSnapshot[];
+  selectedMonthIndex: number | null;
+  viewMonth: number;
+  viewYear: number;
+}) {
+  const viewIndex = findSnapshotIndex(projection.snapshots, viewMonth, viewYear);
+  const snapshot = viewIndex != null ? projection.snapshots[viewIndex] : null;
+
+  return (
+    <Flex direction="column" gap="4" style={{ flex: '1 1 0', minWidth: 0 }}>
+      <Heading size="4" color="purple">{projection.name}</Heading>
+      <SimpleChart
+        title="Net Worth"
+        dataKey="netWorth"
+        baseline={baseline}
+        strategy={projection.snapshots}
+        color="var(--accent-9)"
+        selectedMonthIndex={selectedMonthIndex}
+      />
+      <SimpleChart
+        title="Monthly Cash Flow"
+        dataKey="cashFlow"
+        baseline={baseline}
+        strategy={projection.snapshots}
+        color="var(--green-9)"
+        showZeroLine
+        selectedMonthIndex={selectedMonthIndex}
+      />
+      <SimpleChart
+        title="Cash Reserve"
+        dataKey="cashReserve"
+        baseline={baseline}
+        strategy={projection.snapshots}
+        color="var(--blue-9)"
+        selectedMonthIndex={selectedMonthIndex}
+      />
+      {snapshot && (
+        <>
+          <Separator size="4" />
+          <SnapshotDetail snapshot={snapshot} />
+        </>
+      )}
+    </Flex>
+  );
+}
+
+function StrategyListBar({
+  strategies,
+  activeId,
+  onSetActive,
+  onAdd,
+  onRename,
+  onDuplicate,
+  onRemove,
+}: {
+  strategies: { id: string; name: string; events: unknown[] }[];
+  activeId: string | null;
+  onSetActive: (id: string) => void;
+  onAdd: (name: string) => void;
+  onRename: (id: string, name: string) => void;
+  onDuplicate: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const startRename = (id: string, current: string) => {
+    setRenamingId(id);
+    setRenameValue(current);
+  };
+
+  const commitRename = () => {
+    if (renamingId && renameValue.trim()) {
+      onRename(renamingId, renameValue.trim());
+    }
+    setRenamingId(null);
+  };
+
+  return (
+    <Card>
+      <Flex direction="column" gap="3">
+        <Flex justify="between" align="center">
+          <Heading size="4">Strategies</Heading>
+          <Button
+            size="1"
+            disabled={strategies.length >= MAX_STRATEGIES}
+            onClick={() => onAdd(`Strategy ${strategies.length + 1}`)}
+          >
+            <Plus size={14} />
+            New Strategy
+          </Button>
+        </Flex>
+
+        {strategies.length === 0 && (
+          <Text size="2" color="gray">
+            No strategies yet. Create one to explore what-if scenarios.
+          </Text>
+        )}
+
+        {strategies.map((s) => (
+          <Flex
+            key={s.id}
+            justify="between"
+            align="center"
+            gap="3"
+            p="2"
+            style={{
+              borderRadius: 'var(--radius-2)',
+              background: s.id === activeId ? 'var(--accent-a3)' : undefined,
+              cursor: 'pointer',
+            }}
+            onClick={() => onSetActive(s.id)}
+          >
+            <Flex align="center" gap="2" style={{ minWidth: 0, flex: 1 }}>
+              {renamingId === s.id ? (
+                <TextField.Root
+                  size="1"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); }}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ flex: 1 }}
+                />
+              ) : (
+                <>
+                  <Text size="2" weight={s.id === activeId ? 'bold' : 'medium'} truncate>
+                    {s.name}
+                  </Text>
+                  <Badge size="1" variant="soft" color="gray">
+                    {s.events.length} event{s.events.length !== 1 ? 's' : ''}
+                  </Badge>
+                </>
+              )}
+            </Flex>
+            <Flex gap="1" onClick={(e) => e.stopPropagation()}>
+              <IconButton size="1" variant="ghost" onClick={() => startRename(s.id, s.name)}>
+                <Pencil size={12} />
+              </IconButton>
+              <IconButton
+                size="1"
+                variant="ghost"
+                disabled={strategies.length >= MAX_STRATEGIES}
+                onClick={() => onDuplicate(s.id)}
+              >
+                <Copy size={12} />
+              </IconButton>
+              <IconButton size="1" variant="ghost" color="red" onClick={() => onRemove(s.id)}>
+                <Trash2 size={12} />
+              </IconButton>
+            </Flex>
+          </Flex>
+        ))}
+      </Flex>
+    </Card>
+  );
+}
+
 export default function SimulatorPage() {
   const { events, derived, addEvent, mode } = useEvents();
   const {
-    strategy,
+    strategies,
+    activeStrategy,
+    addStrategy,
+    removeStrategy,
+    duplicateStrategy,
+    renameStrategy,
+    setActive,
     addStrategyEvent,
     removeStrategyEvent,
     updateStrategyEvent,
     clearStrategy,
-  } = useStrategyStore(mode);
+    applyStrategy,
+  } = useStrategyLibrary(mode);
+
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState(0);
 
   const defaults = useDefaultConfig();
   const [targetMonth, setTargetMonth] = useState(defaults.targetMonth);
@@ -416,34 +615,44 @@ export default function SimulatorPage() {
     [targetMonth, targetYear, cashReserveGrowthRate],
   );
 
-  const result = useMemo(
-    () => runSimulation(events, config, strategy.events),
-    [events, config, strategy.events],
+  const result: MultiStrategyResult = useMemo(
+    () => runMultiStrategySimulation(events, config, strategies),
+    [events, config, strategies],
   );
 
   const strategyDerived = useMemo(() => {
-    if (strategy.events.length === 0) return derived;
-    const strategyAsEvents = strategy.events.map((e) => ({
+    if (!activeStrategy || activeStrategy.events.length === 0) return derived;
+    const strategyAsEvents = activeStrategy.events.map((e) => ({
       ...e,
       id: crypto.randomUUID(),
       status: 'active' as const,
     })) as import('@/types/events').FinanceEvent[];
     return deriveState([...events, ...strategyAsEvents]);
-  }, [events, strategy.events, derived]);
+  }, [events, activeStrategy, derived]);
 
   const hasData = result.baseline.length > 0;
-  const hasStrategy = result.strategy != null && result.strategy.length > 0;
+  const hasProjections = result.strategies.length > 0;
 
-  const activeSnapshots = hasStrategy ? (result.strategy ?? result.baseline) : result.baseline;
+  const activeProjection = activeStrategy
+    ? result.strategies.find((p) => p.id === activeStrategy.id) ?? null
+    : null;
+  const activeSnapshots = activeProjection ? activeProjection.snapshots : result.baseline;
   const viewIndex = findSnapshotIndex(activeSnapshots, viewMonth, viewYear);
   const selectedSnapshot = viewIndex != null ? activeSnapshots[viewIndex] : null;
   const selectedMonthIndex = selectedSnapshot?.monthIndex ?? null;
 
-  const handleApply = () => {
-    for (const event of strategy.events) {
-      addEvent(event);
+  useEffect(() => {
+    if (mobileTab >= result.strategies.length) {
+      setMobileTab(0);
     }
-    clearStrategy();
+  }, [result.strategies.length, mobileTab]);
+
+  const handleApply = (id: string) => {
+    applyStrategy(id, addEvent);
+  };
+
+  const handleDiscard = (id: string) => {
+    clearStrategy(id);
   };
 
   return (
@@ -559,19 +768,31 @@ export default function SimulatorPage() {
         </Flex>
       </Card>
 
-      <StrategyPanel
-        strategy={strategy}
-        events={events}
-        liabilities={strategyDerived.liabilities}
-        cashAssets={strategyDerived.assets.filter((a): a is import('@/types/events').Cash => a.kind === 'cash')}
-        expenses={strategyDerived.expenses}
-        baselineSnapshots={result.strategy ?? result.baseline}
-        onAddEvent={addStrategyEvent}
-        onUpdateEvent={updateStrategyEvent}
-        onRemoveEvent={removeStrategyEvent}
-        onApply={handleApply}
-        onDiscard={clearStrategy}
+      <StrategyListBar
+        strategies={strategies}
+        activeId={activeStrategy?.id ?? null}
+        onSetActive={setActive}
+        onAdd={addStrategy}
+        onRename={renameStrategy}
+        onDuplicate={duplicateStrategy}
+        onRemove={removeStrategy}
       />
+
+      {activeStrategy && (
+        <StrategyPanel
+          strategy={activeStrategy}
+          events={events}
+          liabilities={strategyDerived.liabilities}
+          cashAssets={strategyDerived.assets.filter((a): a is Cash => a.kind === 'cash')}
+          expenses={strategyDerived.expenses}
+          baselineSnapshots={activeProjection?.snapshots ?? result.baseline}
+          onAddEvent={addStrategyEvent}
+          onUpdateEvent={updateStrategyEvent}
+          onRemoveEvent={removeStrategyEvent}
+          onApply={() => handleApply(activeStrategy.id)}
+          onDiscard={() => handleDiscard(activeStrategy.id)}
+        />
+      )}
 
       {!hasData && (
         <Card>
@@ -581,13 +802,13 @@ export default function SimulatorPage() {
         </Card>
       )}
 
-      {hasData && (
+      {hasData && !hasProjections && (
         <>
           <SimpleChart
             title="Net Worth"
             dataKey="netWorth"
             baseline={result.baseline}
-            strategy={result.strategy}
+            strategy={null}
             color="var(--accent-9)"
             selectedMonthIndex={selectedMonthIndex}
           />
@@ -595,7 +816,7 @@ export default function SimulatorPage() {
             title="Monthly Cash Flow"
             dataKey="cashFlow"
             baseline={result.baseline}
-            strategy={result.strategy}
+            strategy={null}
             color="var(--green-9)"
             showZeroLine
             selectedMonthIndex={selectedMonthIndex}
@@ -604,11 +825,10 @@ export default function SimulatorPage() {
             title="Cash Reserve"
             dataKey="cashReserve"
             baseline={result.baseline}
-            strategy={result.strategy}
+            strategy={null}
             color="var(--blue-9)"
             selectedMonthIndex={selectedMonthIndex}
           />
-
           {selectedSnapshot && (
             <>
               <Separator size="4" />
@@ -616,6 +836,83 @@ export default function SimulatorPage() {
             </>
           )}
         </>
+      )}
+
+      {hasData && hasProjections && result.strategies.length === 1 && (
+        <>
+          <SimpleChart
+            title="Net Worth"
+            dataKey="netWorth"
+            baseline={result.baseline}
+            strategy={result.strategies[0].snapshots}
+            color="var(--accent-9)"
+            selectedMonthIndex={selectedMonthIndex}
+          />
+          <SimpleChart
+            title="Monthly Cash Flow"
+            dataKey="cashFlow"
+            baseline={result.baseline}
+            strategy={result.strategies[0].snapshots}
+            color="var(--green-9)"
+            showZeroLine
+            selectedMonthIndex={selectedMonthIndex}
+          />
+          <SimpleChart
+            title="Cash Reserve"
+            dataKey="cashReserve"
+            baseline={result.baseline}
+            strategy={result.strategies[0].snapshots}
+            color="var(--blue-9)"
+            selectedMonthIndex={selectedMonthIndex}
+          />
+          {selectedSnapshot && (
+            <>
+              <Separator size="4" />
+              <SnapshotDetail snapshot={selectedSnapshot} />
+            </>
+          )}
+        </>
+      )}
+
+      {hasData && hasProjections && result.strategies.length > 1 && (
+        isMobile ? (
+          <>
+            <Flex gap="2" wrap="wrap">
+              {result.strategies.map((p, i) => (
+                <Button
+                  key={p.id}
+                  size="2"
+                  variant={mobileTab === i ? 'solid' : 'soft'}
+                  onClick={() => setMobileTab(i)}
+                >
+                  {p.name}
+                </Button>
+              ))}
+            </Flex>
+            {result.strategies[mobileTab] && (
+              <StrategyColumn
+                projection={result.strategies[mobileTab]}
+                baseline={result.baseline}
+                selectedMonthIndex={selectedMonthIndex}
+                viewMonth={viewMonth}
+                viewYear={viewYear}
+              />
+            )}
+          </>
+        ) : (
+          <Flex gap="5" align="start">
+            {result.strategies.map((p) => (
+              <StrategyColumn
+                key={p.id}
+                projection={p}
+                baseline={result.baseline}
+                selectedMonthIndex={selectedMonthIndex}
+                viewMonth={viewMonth}
+                viewYear={viewYear}
+              />
+            ))}
+          </Flex>
+        )
       )}
     </Flex>
   );
