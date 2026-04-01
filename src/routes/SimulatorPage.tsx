@@ -631,10 +631,10 @@ export default function SimulatorPage() {
   }, [events, activeStrategy, derived]);
 
   const hasData = result.baseline.length > 0;
-  const hasProjections = result.strategies.length > 0;
+  const nonEmptyProjections = result.strategies;
 
   const activeProjection = activeStrategy
-    ? result.strategies.find((p) => p.id === activeStrategy.id) ?? null
+    ? nonEmptyProjections.find((p) => p.id === activeStrategy.id) ?? null
     : null;
   const activeSnapshots = activeProjection ? activeProjection.snapshots : result.baseline;
   const viewIndex = findSnapshotIndex(activeSnapshots, viewMonth, viewYear);
@@ -642,10 +642,10 @@ export default function SimulatorPage() {
   const selectedMonthIndex = selectedSnapshot?.monthIndex ?? null;
 
   useEffect(() => {
-    if (mobileTab >= result.strategies.length) {
+    if (mobileTab >= nonEmptyProjections.length) {
       setMobileTab(0);
     }
-  }, [result.strategies.length, mobileTab]);
+  }, [nonEmptyProjections.length, mobileTab]);
 
   const handleApply = (id: string) => {
     applyStrategy(id, addEvent);
@@ -802,13 +802,13 @@ export default function SimulatorPage() {
         </Card>
       )}
 
-      {hasData && !hasProjections && (
+      {hasData && nonEmptyProjections.length <= 1 && (
         <>
           <SimpleChart
             title="Net Worth"
             dataKey="netWorth"
             baseline={result.baseline}
-            strategy={null}
+            strategy={activeProjection?.snapshots ?? null}
             color="var(--accent-9)"
             selectedMonthIndex={selectedMonthIndex}
           />
@@ -816,7 +816,7 @@ export default function SimulatorPage() {
             title="Monthly Cash Flow"
             dataKey="cashFlow"
             baseline={result.baseline}
-            strategy={null}
+            strategy={activeProjection?.snapshots ?? null}
             color="var(--green-9)"
             showZeroLine
             selectedMonthIndex={selectedMonthIndex}
@@ -825,7 +825,7 @@ export default function SimulatorPage() {
             title="Cash Reserve"
             dataKey="cashReserve"
             baseline={result.baseline}
-            strategy={null}
+            strategy={activeProjection?.snapshots ?? null}
             color="var(--blue-9)"
             selectedMonthIndex={selectedMonthIndex}
           />
@@ -838,47 +838,11 @@ export default function SimulatorPage() {
         </>
       )}
 
-      {hasData && hasProjections && result.strategies.length === 1 && (
-        <>
-          <SimpleChart
-            title="Net Worth"
-            dataKey="netWorth"
-            baseline={result.baseline}
-            strategy={result.strategies[0].snapshots}
-            color="var(--accent-9)"
-            selectedMonthIndex={selectedMonthIndex}
-          />
-          <SimpleChart
-            title="Monthly Cash Flow"
-            dataKey="cashFlow"
-            baseline={result.baseline}
-            strategy={result.strategies[0].snapshots}
-            color="var(--green-9)"
-            showZeroLine
-            selectedMonthIndex={selectedMonthIndex}
-          />
-          <SimpleChart
-            title="Cash Reserve"
-            dataKey="cashReserve"
-            baseline={result.baseline}
-            strategy={result.strategies[0].snapshots}
-            color="var(--blue-9)"
-            selectedMonthIndex={selectedMonthIndex}
-          />
-          {selectedSnapshot && (
-            <>
-              <Separator size="4" />
-              <SnapshotDetail snapshot={selectedSnapshot} />
-            </>
-          )}
-        </>
-      )}
-
-      {hasData && hasProjections && result.strategies.length > 1 && (
+      {hasData && nonEmptyProjections.length > 1 && (
         isMobile ? (
           <>
             <Flex gap="2" wrap="wrap">
-              {result.strategies.map((p, i) => (
+              {nonEmptyProjections.map((p, i) => (
                 <Button
                   key={p.id}
                   size="2"
@@ -889,9 +853,9 @@ export default function SimulatorPage() {
                 </Button>
               ))}
             </Flex>
-            {result.strategies[mobileTab] && (
+            {nonEmptyProjections[mobileTab] && (
               <StrategyColumn
-                projection={result.strategies[mobileTab]}
+                projection={nonEmptyProjections[mobileTab]}
                 baseline={result.baseline}
                 selectedMonthIndex={selectedMonthIndex}
                 viewMonth={viewMonth}
@@ -901,7 +865,7 @@ export default function SimulatorPage() {
           </>
         ) : (
           <Flex gap="5" align="start">
-            {result.strategies.map((p) => (
+            {nonEmptyProjections.map((p) => (
               <StrategyColumn
                 key={p.id}
                 projection={p}
