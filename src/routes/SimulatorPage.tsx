@@ -10,7 +10,7 @@ import {
   TextField,
 } from '@radix-ui/themes';
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -597,7 +597,6 @@ export default function SimulatorPage() {
   } = useStrategyLibrary(mode);
 
   const isMobile = useIsMobile();
-  const [mobileTab, setMobileTab] = useState(0);
 
   const defaults = useDefaultConfig();
   const [targetMonth, setTargetMonth] = useState(defaults.targetMonth);
@@ -641,11 +640,6 @@ export default function SimulatorPage() {
   const selectedSnapshot = viewIndex != null ? activeSnapshots[viewIndex] : null;
   const selectedMonthIndex = selectedSnapshot?.monthIndex ?? null;
 
-  useEffect(() => {
-    if (mobileTab >= nonEmptyProjections.length) {
-      setMobileTab(0);
-    }
-  }, [nonEmptyProjections.length, mobileTab]);
 
   const handleApply = (id: string) => {
     applyStrategy(id, addEvent);
@@ -838,45 +832,29 @@ export default function SimulatorPage() {
         </>
       )}
 
-      {hasData && nonEmptyProjections.length > 1 && (
-        isMobile ? (
-          <>
-            <Flex gap="2" wrap="wrap">
-              {nonEmptyProjections.map((p, i) => (
-                <Button
-                  key={p.id}
-                  size="2"
-                  variant={mobileTab === i ? 'solid' : 'soft'}
-                  onClick={() => setMobileTab(i)}
-                >
-                  {p.name}
-                </Button>
-              ))}
-            </Flex>
-            {nonEmptyProjections[mobileTab] && (
-              <StrategyColumn
-                projection={nonEmptyProjections[mobileTab]}
-                baseline={result.baseline}
-                selectedMonthIndex={selectedMonthIndex}
-                viewMonth={viewMonth}
-                viewYear={viewYear}
-              />
-            )}
-          </>
-        ) : (
-          <Flex gap="5" align="start">
-            {nonEmptyProjections.map((p) => (
-              <StrategyColumn
-                key={p.id}
-                projection={p}
-                baseline={result.baseline}
-                selectedMonthIndex={selectedMonthIndex}
-                viewMonth={viewMonth}
-                viewYear={viewYear}
-              />
-            ))}
-          </Flex>
-        )
+      {hasData && nonEmptyProjections.length > 1 && !isMobile && (
+        <Flex gap="5" align="start">
+          {nonEmptyProjections.map((p) => (
+            <StrategyColumn
+              key={p.id}
+              projection={p}
+              baseline={result.baseline}
+              selectedMonthIndex={selectedMonthIndex}
+              viewMonth={viewMonth}
+              viewYear={viewYear}
+            />
+          ))}
+        </Flex>
+      )}
+
+      {hasData && nonEmptyProjections.length > 1 && isMobile && activeProjection && (
+        <StrategyColumn
+          projection={activeProjection}
+          baseline={result.baseline}
+          selectedMonthIndex={selectedMonthIndex}
+          viewMonth={viewMonth}
+          viewYear={viewYear}
+        />
       )}
     </Flex>
   );
