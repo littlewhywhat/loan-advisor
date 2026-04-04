@@ -122,7 +122,7 @@ Feature: Simulator Strategy
     And the BuyAsset allocates all from the TakePersonalLoan cash
     When the simulator runs
     Then the loan cash is fully deducted despite the buy date being earlier
-    Because strategy events are applied in insertion order, not date order
+    # Because strategy events are applied in insertion order, not date order
 
   Rule: User can edit strategy events
 

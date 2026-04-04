@@ -6,3 +6,7 @@ dist
 .DS_Store
 tsconfig.tsbuildinfo
 local-storage.json
+.features-gen
+test-results
+playwright-report
+blob-report
