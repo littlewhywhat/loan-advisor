@@ -17,6 +17,7 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on',
+    launchOptions: { slowMo: 300 },
   },
   projects: [
     {
@@ -28,6 +29,8 @@ export default defineConfig({
       use: { ...devices['Pixel 7'] },
     },
   ],
+  timeout: 60_000,
+  preserveOutput: 'always',
   retries: process.env.CI ? 1 : 0,
   webServer: {
     command: 'pnpm dev',

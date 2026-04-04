@@ -13,8 +13,8 @@
     "check:ci": "biome ci .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "pnpm exec bddgen && pnpm exec playwright test",
-    "e2e:headed": "pnpm exec bddgen && pnpm exec playwright test --headed"
+    "e2e": "pnpm exec bddgen && pnpm exec playwright test && node e2e/rename-videos.mjs",
+    "e2e:headed": "pnpm exec bddgen && pnpm exec playwright test --headed && node e2e/rename-videos.mjs"
   },
   "dependencies": {
     "@radix-ui/themes": "^3.3.0",
