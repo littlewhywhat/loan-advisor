@@ -117,6 +117,7 @@ export type RepayLoanEvent = EventBase & {
   expenseId: string;
   repaymentAmount: MoneyAmount;
   strategy: RepayLoanStrategy;
+  allocations?: CashAllocation[];
   newPrincipal: MoneyAmount;
   newStartDate: string;
   newEndDate: string;

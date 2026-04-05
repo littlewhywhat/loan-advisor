@@ -37,6 +37,7 @@ entity RepayLoan {
   * expenseId : uuid <<FK>>
   * repaymentAmount : MoneyAmount
   * strategy : reduce_payment | reduce_term
+  allocations : CashAllocation[]
   --
   * newPrincipal : MoneyAmount
   * newStartDate : date
@@ -75,6 +76,7 @@ AddExpense "1" *-- "1" Expense
 
 RepayLoan "1" --> "1" Liability : targets
 RepayLoan "1" --> "1" Expense : updates
+RepayLoan "1" *-- "0..*" CashAllocation
 
 BuyAsset "1" *-- "1" Asset
 BuyAsset "1" *-- "1..*" CashAllocation

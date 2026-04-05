@@ -101,6 +101,17 @@ export function applyEvents(
         if (expense) {
           expense.amount = event.newMonthlyPayment;
         }
+        if (event.allocations) {
+          for (const alloc of event.allocations) {
+            const cash = assets.find((a) => a.id === alloc.cashAssetId);
+            if (cash) {
+              cash.value = {
+                ...cash.value,
+                amount: Math.max(0, cash.value.amount - alloc.amount.amount),
+              };
+            }
+          }
+        }
         break;
       }
       case 'manual_correction': {

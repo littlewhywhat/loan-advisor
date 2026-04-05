@@ -13,9 +13,11 @@ import {
 } from '@radix-ui/themes';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { monthlyPayment } from '@/lib/loanCalc';
+import CashAllocationsField from '@/components/CashAllocationsField';
 import {
+  type AssetFormData,
   assetFormFromEvent,
+  type BuyAssetFormData,
   buildAddAssetInput,
   buildAddExpenseInput,
   buildAddIncomeInput,
@@ -25,6 +27,8 @@ import {
   buildTakePersonalLoanInput,
   buyAssetFormFromEvent,
   describeEvent,
+  EVENT_TYPES,
+  type ExpenseFormData,
   emptyAssetForm,
   emptyBuyAssetForm,
   emptyExpenseForm,
@@ -33,26 +37,38 @@ import {
   emptyPersonalLoanForm,
   emptyRepayLoanForm,
   expenseFormFromEvent,
-  EVENT_TYPES,
-  incomeFormFromEvent,
-  mortgageFormFromEvent,
-  personalLoanFormFromEvent,
-  repayLoanFormFromEvent,
-  type AssetFormData,
-  type BuyAssetFormData,
-  type ExpenseFormData,
   type IncomeFormData,
+  incomeFormFromEvent,
   type MortgageFormData,
+  mortgageFormFromEvent,
   type PersonalLoanFormData,
+  personalLoanFormFromEvent,
   type RepayLoanFormData,
+  repayLoanFormFromEvent,
   type StrategyEventType,
 } from '@/lib/eventBuilders';
-import { fmtMoney, formatMoney } from '@/lib/format';
 import { findOwnerEvent } from '@/lib/eventUtils';
-import { computeLoanDerived } from '@/lib/loanCalc';
-import type { Asset, Cash, Currency, Expense, FinanceEvent, Frequency, Liability, NewEventInput, RepayLoanStrategy, Strategy } from '@/types/events';
+import { fmtMoney, formatMoney } from '@/lib/format';
+import { computeLoanDerived, monthlyPayment } from '@/lib/loanCalc';
+import type {
+  Asset,
+  Cash,
+  Currency,
+  Expense,
+  FinanceEvent,
+  Frequency,
+  Liability,
+  NewEventInput,
+  RepayLoanStrategy,
+  Strategy,
+} from '@/types/events';
 
-type SnapshotLookup = { month: number; year: number; cashReserve: number; liabilities: { id: string; balance: number }[] }[];
+type SnapshotLookup = {
+  month: number;
+  year: number;
+  cashReserve: number;
+  liabilities: { id: string; balance: number }[];
+}[];
 
 type Props = {
   strategy: Strategy;
@@ -79,7 +95,13 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function CurrencySelect({ value, onChange }: { value: Currency; onChange: (v: Currency) => void }) {
+function CurrencySelect({
+  value,
+  onChange,
+}: {
+  value: Currency;
+  onChange: (v: Currency) => void;
+}) {
   return (
     <Select.Root value={value} onValueChange={(v) => onChange(v as Currency)}>
       <Select.Trigger style={{ width: '100%' }} />
@@ -106,7 +128,9 @@ function IncomeFields({
   return (
     <>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Name</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Name</span>
+        </Text>
         <TextField.Root
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
@@ -115,36 +139,57 @@ function IncomeFields({
       </div>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Amount</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Amount</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.amount || ''}
-            onChange={(e) => onChange({ ...form, amount: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, amount: Number(e.target.value) || 0 })
+            }
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
-          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Currency</span>
+          </Text>
+          <CurrencySelect
+            value={form.currency}
+            onChange={(c) => onChange({ ...form, currency: c })}
+          />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Frequency</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Frequency</span>
+          </Text>
           <Select.Root
             value={form.frequency}
-            onValueChange={(v) => onChange({ ...form, frequency: v as Frequency })}
+            onValueChange={(v) =>
+              onChange({ ...form, frequency: v as Frequency })
+            }
           >
             <Select.Trigger style={{ width: '100%' }} />
             <Select.Content>
               {FREQUENCIES.map((f) => (
-                <Select.Item key={f} value={f}>{FREQ_LABELS[f]}</Select.Item>
+                <Select.Item key={f} value={f}>
+                  {FREQ_LABELS[f]}
+                </Select.Item>
               ))}
             </Select.Content>
           </Select.Root>
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Start Date</span></Text>
-          <TextField.Root type="date" value={date} onChange={(e) => onDateChange(e.target.value)} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Start Date</span>
+          </Text>
+          <TextField.Root
+            type="date"
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+          />
         </div>
       </Flex>
     </>
@@ -165,7 +210,9 @@ function ExpenseFields({
   return (
     <>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Name</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Name</span>
+        </Text>
         <TextField.Root
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
@@ -174,36 +221,57 @@ function ExpenseFields({
       </div>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Amount</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Amount</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.amount || ''}
-            onChange={(e) => onChange({ ...form, amount: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, amount: Number(e.target.value) || 0 })
+            }
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
-          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Currency</span>
+          </Text>
+          <CurrencySelect
+            value={form.currency}
+            onChange={(c) => onChange({ ...form, currency: c })}
+          />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Frequency</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Frequency</span>
+          </Text>
           <Select.Root
             value={form.frequency}
-            onValueChange={(v) => onChange({ ...form, frequency: v as Frequency })}
+            onValueChange={(v) =>
+              onChange({ ...form, frequency: v as Frequency })
+            }
           >
             <Select.Trigger style={{ width: '100%' }} />
             <Select.Content>
               {FREQUENCIES.map((f) => (
-                <Select.Item key={f} value={f}>{FREQ_LABELS[f]}</Select.Item>
+                <Select.Item key={f} value={f}>
+                  {FREQ_LABELS[f]}
+                </Select.Item>
               ))}
             </Select.Content>
           </Select.Root>
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Start Date</span></Text>
-          <TextField.Root type="date" value={date} onChange={(e) => onDateChange(e.target.value)} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Start Date</span>
+          </Text>
+          <TextField.Root
+            type="date"
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+          />
         </div>
       </Flex>
     </>
@@ -224,7 +292,9 @@ function AssetFields({
   return (
     <>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Name</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Name</span>
+        </Text>
         <TextField.Root
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
@@ -233,10 +303,14 @@ function AssetFields({
       </div>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Kind</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Kind</span>
+          </Text>
           <Select.Root
             value={form.kind}
-            onValueChange={(v) => onChange({ ...form, kind: v as Asset['kind'] })}
+            onValueChange={(v) =>
+              onChange({ ...form, kind: v as Asset['kind'] })
+            }
           >
             <Select.Trigger style={{ width: '100%' }} />
             <Select.Content>
@@ -246,32 +320,51 @@ function AssetFields({
           </Select.Root>
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Value</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Value</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.value || ''}
-            onChange={(e) => onChange({ ...form, value: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, value: Number(e.target.value) || 0 })
+            }
           />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
-          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Currency</span>
+          </Text>
+          <CurrencySelect
+            value={form.currency}
+            onChange={(c) => onChange({ ...form, currency: c })}
+          />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Growth Rate (%/yr)</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Growth Rate (%/yr)</span>
+          </Text>
           <TextField.Root
             type="number"
             step="0.1"
             value={form.growthRate || ''}
-            onChange={(e) => onChange({ ...form, growthRate: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, growthRate: Number(e.target.value) || 0 })
+            }
           />
         </div>
       </Flex>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Date</span></Text>
-        <TextField.Root type="date" value={date} onChange={(e) => onDateChange(e.target.value)} />
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Date</span>
+        </Text>
+        <TextField.Root
+          type="date"
+          value={date}
+          onChange={(e) => onDateChange(e.target.value)}
+        />
       </div>
     </>
   );
@@ -285,14 +378,17 @@ function MortgageFields({
   onChange: (f: MortgageFormData) => void;
 }) {
   const mp = useMemo(
-    () => monthlyPayment(form.loanValue, form.interestRate / 100, form.termYears),
+    () =>
+      monthlyPayment(form.loanValue, form.interestRate / 100, form.termYears),
     [form.loanValue, form.interestRate, form.termYears],
   );
 
   return (
     <>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Name</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Name</span>
+        </Text>
         <TextField.Root
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
@@ -301,40 +397,59 @@ function MortgageFields({
       </div>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Loan Value</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Loan Value</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.loanValue || ''}
-            onChange={(e) => onChange({ ...form, loanValue: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, loanValue: Number(e.target.value) || 0 })
+            }
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Down Payment</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Down Payment</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.downPayment || ''}
-            onChange={(e) => onChange({ ...form, downPayment: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, downPayment: Number(e.target.value) || 0 })
+            }
           />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Annual Rate (%)</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Annual Rate (%)</span>
+          </Text>
           <TextField.Root
             type="number"
             step="0.1"
             value={form.interestRate || ''}
-            onChange={(e) => onChange({ ...form, interestRate: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, interestRate: Number(e.target.value) || 0 })
+            }
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
-          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Currency</span>
+          </Text>
+          <CurrencySelect
+            value={form.currency}
+            onChange={(c) => onChange({ ...form, currency: c })}
+          />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Start Date</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Start Date</span>
+          </Text>
           <TextField.Root
             type="date"
             value={form.startDate}
@@ -342,36 +457,51 @@ function MortgageFields({
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Term (years)</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Term (years)</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.termYears || ''}
-            onChange={(e) => onChange({ ...form, termYears: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, termYears: Number(e.target.value) || 0 })
+            }
           />
         </div>
       </Flex>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Flat Growth Rate (%/yr)</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Flat Growth Rate (%/yr)</span>
+        </Text>
         <TextField.Root
           type="number"
           step="0.1"
           value={form.growthRate || ''}
-          onChange={(e) => onChange({ ...form, growthRate: Number(e.target.value) || 0 })}
+          onChange={(e) =>
+            onChange({ ...form, growthRate: Number(e.target.value) || 0 })
+          }
         />
       </div>
       {mp > 0 && (
         <Card variant="surface">
           <Flex gap="5">
             <Flex direction="column">
-              <Text size="1" color="gray">Monthly Payment</Text>
+              <Text size="1" color="gray">
+                Monthly Payment
+              </Text>
               <Text size="3" weight="bold">
                 {fmtMoney({ amount: Math.round(mp), currency: form.currency })}
               </Text>
             </Flex>
             <Flex direction="column">
-              <Text size="1" color="gray">Flat Value</Text>
+              <Text size="1" color="gray">
+                Flat Value
+              </Text>
               <Text size="3" weight="bold">
-                {fmtMoney({ amount: form.loanValue + form.downPayment, currency: form.currency })}
+                {fmtMoney({
+                  amount: form.loanValue + form.downPayment,
+                  currency: form.currency,
+                })}
               </Text>
             </Flex>
           </Flex>
@@ -400,18 +530,29 @@ function MortgageFields({
           {form.rental && (
             <Flex gap="3">
               <div style={{ flex: 1 }}>
-                <Text size="1" weight="medium" asChild><span>Income Name</span></Text>
+                <Text size="1" weight="medium" asChild>
+                  <span>Income Name</span>
+                </Text>
                 <TextField.Root
                   value={form.rentalIncomeName}
-                  onChange={(e) => onChange({ ...form, rentalIncomeName: e.target.value })}
+                  onChange={(e) =>
+                    onChange({ ...form, rentalIncomeName: e.target.value })
+                  }
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <Text size="1" weight="medium" asChild><span>Monthly Rent</span></Text>
+                <Text size="1" weight="medium" asChild>
+                  <span>Monthly Rent</span>
+                </Text>
                 <TextField.Root
                   type="number"
                   value={form.rentalIncomeAmount || ''}
-                  onChange={(e) => onChange({ ...form, rentalIncomeAmount: Number(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    onChange({
+                      ...form,
+                      rentalIncomeAmount: Number(e.target.value) || 0,
+                    })
+                  }
                 />
               </div>
             </Flex>
@@ -430,14 +571,17 @@ function PersonalLoanFields({
   onChange: (f: PersonalLoanFormData) => void;
 }) {
   const mp = useMemo(
-    () => monthlyPayment(form.loanValue, form.interestRate / 100, form.termYears),
+    () =>
+      monthlyPayment(form.loanValue, form.interestRate / 100, form.termYears),
     [form.loanValue, form.interestRate, form.termYears],
   );
 
   return (
     <>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Name</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Name</span>
+        </Text>
         <TextField.Root
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
@@ -446,39 +590,58 @@ function PersonalLoanFields({
       </div>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Loan Value</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Loan Value</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.loanValue || ''}
-            onChange={(e) => onChange({ ...form, loanValue: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, loanValue: Number(e.target.value) || 0 })
+            }
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
-          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Currency</span>
+          </Text>
+          <CurrencySelect
+            value={form.currency}
+            onChange={(c) => onChange({ ...form, currency: c })}
+          />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Annual Rate (%)</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Annual Rate (%)</span>
+          </Text>
           <TextField.Root
             type="number"
             step="0.1"
             value={form.interestRate || ''}
-            onChange={(e) => onChange({ ...form, interestRate: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, interestRate: Number(e.target.value) || 0 })
+            }
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Term (years)</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Term (years)</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.termYears || ''}
-            onChange={(e) => onChange({ ...form, termYears: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, termYears: Number(e.target.value) || 0 })
+            }
           />
         </div>
       </Flex>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Start Date</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Start Date</span>
+        </Text>
         <TextField.Root
           type="date"
           value={form.startDate}
@@ -488,7 +651,9 @@ function PersonalLoanFields({
       {mp > 0 && (
         <Card variant="surface">
           <Flex direction="column">
-            <Text size="1" color="gray">Monthly Payment</Text>
+            <Text size="1" color="gray">
+              Monthly Payment
+            </Text>
             <Text size="3" weight="bold">
               {fmtMoney({ amount: Math.round(mp), currency: form.currency })}
             </Text>
@@ -505,6 +670,7 @@ function RepayLoanFields({
   date,
   onDateChange,
   liabilities,
+  cashAssets,
   events,
   baselineSnapshots,
 }: {
@@ -513,6 +679,7 @@ function RepayLoanFields({
   date: string;
   onDateChange: (d: string) => void;
   liabilities: Liability[];
+  cashAssets: Cash[];
   events: FinanceEvent[];
   baselineSnapshots: SnapshotLookup;
 }) {
@@ -541,7 +708,9 @@ function RepayLoanFields({
     const m = d.getMonth() + 1;
     const y = d.getFullYear();
     const snap = baselineSnapshots.find((s) => s.year === y && s.month === m);
-    const snapLiability = snap?.liabilities.find((l) => l.id === form.liabilityId);
+    const snapLiability = snap?.liabilities.find(
+      (l) => l.id === form.liabilityId,
+    );
     const loanBalance = snapLiability?.balance ?? null;
     if (loanBalance == null) {
       const { currentBalance } = computeLoanDerived(
@@ -553,40 +722,80 @@ function RepayLoanFields({
       );
       return { currentBalance, cashReserve: snap?.cashReserve ?? null };
     }
-    return { currentBalance: loanBalance, cashReserve: snap?.cashReserve ?? null };
-  }, [form.liabilityId, form.originalPrincipal, form.interestRate, form.loanStartDate, form.loanEndDate, date, baselineSnapshots]);
+    return {
+      currentBalance: loanBalance,
+      cashReserve: snap?.cashReserve ?? null,
+    };
+  }, [
+    form.liabilityId,
+    form.originalPrincipal,
+    form.interestRate,
+    form.loanStartDate,
+    form.loanEndDate,
+    date,
+    baselineSnapshots,
+  ]);
 
   return (
     <>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Liability</span></Text>
-        <Select.Root value={form.liabilityId} onValueChange={handleLiabilityChange}>
-          <Select.Trigger style={{ width: '100%' }} placeholder="Select a loan..." />
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Liability</span>
+        </Text>
+        <Select.Root
+          value={form.liabilityId}
+          onValueChange={handleLiabilityChange}
+        >
+          <Select.Trigger
+            style={{ width: '100%' }}
+            placeholder="Select a loan..."
+          />
           <Select.Content>
             {liabilities.map((l) => (
-              <Select.Item key={l.id} value={l.id}>{l.name}</Select.Item>
+              <Select.Item key={l.id} value={l.id}>
+                {l.name}
+              </Select.Item>
             ))}
           </Select.Content>
         </Select.Root>
       </div>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Repayment Amount</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Repayment Amount</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.repaymentAmount || ''}
-            onChange={(e) => onChange({ ...form, repaymentAmount: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({
+                ...form,
+                repaymentAmount: Number(e.target.value) || 0,
+              })
+            }
           />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
-          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Currency</span>
+          </Text>
+          <CurrencySelect
+            value={form.currency}
+            onChange={(c) => onChange({ ...form, currency: c })}
+          />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Strategy</span></Text>
-          <Select.Root value={form.strategy} onValueChange={(v) => onChange({ ...form, strategy: v as RepayLoanStrategy })}>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Strategy</span>
+          </Text>
+          <Select.Root
+            value={form.strategy}
+            onValueChange={(v) =>
+              onChange({ ...form, strategy: v as RepayLoanStrategy })
+            }
+          >
             <Select.Trigger style={{ width: '100%' }} />
             <Select.Content>
               <Select.Item value="reduce_payment">Reduce Payment</Select.Item>
@@ -595,28 +804,48 @@ function RepayLoanFields({
           </Select.Root>
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Date</span></Text>
-          <TextField.Root type="date" value={date} onChange={(e) => onDateChange(e.target.value)} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Date</span>
+          </Text>
+          <TextField.Root
+            type="date"
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+          />
         </div>
       </Flex>
       {preview && (
         <Card variant="surface">
           <Flex gap="4">
             <Flex direction="column" style={{ flex: 1 }}>
-              <Text size="1" color="gray">Loan Balance at {date}</Text>
+              <Text size="1" color="gray">
+                Loan Balance at {date}
+              </Text>
               <Text size="3" weight="bold">
                 {formatMoney(preview.currentBalance, form.currency)}
               </Text>
             </Flex>
             {preview.cashReserve != null && (
               <Flex direction="column" style={{ flex: 1 }}>
-                <Text size="1" color="gray">Cash Reserve at {date}</Text>
+                <Text size="1" color="gray">
+                  Cash Reserve at {date}
+                </Text>
                 <Text size="3" weight="bold" color="green">
                   {formatMoney(preview.cashReserve, form.currency)}
                 </Text>
               </Flex>
             )}
           </Flex>
+        </Card>
+      )}
+      {cashAssets.length > 0 && (
+        <Card variant="surface">
+          <CashAllocationsField
+            allocations={form.allocations}
+            cashAssets={cashAssets}
+            currency={form.currency}
+            onChange={(allocations) => onChange({ ...form, allocations })}
+          />
         </Card>
       )}
     </>
@@ -638,40 +867,12 @@ function BuyAssetFields({
   cashAssets: Cash[];
   expenses: Expense[];
 }) {
-  const allocatedTotal = form.allocations.reduce((sum, a) => sum + a.amount, 0);
-  const remaining = form.value - allocatedTotal;
-
-  const addAllocation = () => {
-    const available = cashAssets.filter(
-      (c) => !form.allocations.some((a) => a.cashAssetId === c.id),
-    );
-    if (available.length === 0) return;
-    onChange({
-      ...form,
-      allocations: [...form.allocations, { cashAssetId: available[0].id, amount: 0 }],
-    });
-  };
-
-  const removeAllocation = (idx: number) => {
-    onChange({
-      ...form,
-      allocations: form.allocations.filter((_, i) => i !== idx),
-    });
-  };
-
-  const updateAllocation = (idx: number, patch: { cashAssetId?: string; amount?: number }) => {
-    onChange({
-      ...form,
-      allocations: form.allocations.map((a, i) => (i === idx ? { ...a, ...patch } : a)),
-    });
-  };
-
-  const usedIds = new Set(form.allocations.map((a) => a.cashAssetId));
-
   return (
     <>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Name</span></Text>
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Name</span>
+        </Text>
         <TextField.Root
           value={form.name}
           onChange={(e) => onChange({ ...form, name: e.target.value })}
@@ -680,10 +881,14 @@ function BuyAssetFields({
       </div>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Kind</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Kind</span>
+          </Text>
           <Select.Root
             value={form.kind}
-            onValueChange={(v) => onChange({ ...form, kind: v as Asset['kind'] })}
+            onValueChange={(v) =>
+              onChange({ ...form, kind: v as Asset['kind'] })
+            }
           >
             <Select.Trigger style={{ width: '100%' }} />
             <Select.Content>
@@ -693,94 +898,61 @@ function BuyAssetFields({
           </Select.Root>
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Value</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Value</span>
+          </Text>
           <TextField.Root
             type="number"
             value={form.value || ''}
-            onChange={(e) => onChange({ ...form, value: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, value: Number(e.target.value) || 0 })
+            }
           />
         </div>
       </Flex>
       <Flex gap="3">
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Currency</span></Text>
-          <CurrencySelect value={form.currency} onChange={(c) => onChange({ ...form, currency: c })} />
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Currency</span>
+          </Text>
+          <CurrencySelect
+            value={form.currency}
+            onChange={(c) => onChange({ ...form, currency: c })}
+          />
         </div>
         <div style={{ flex: 1 }}>
-          <Text size="2" weight="medium" mb="1" asChild><span>Growth Rate (%/yr)</span></Text>
+          <Text size="2" weight="medium" mb="1" asChild>
+            <span>Growth Rate (%/yr)</span>
+          </Text>
           <TextField.Root
             type="number"
             step="0.1"
             value={form.growthRate || ''}
-            onChange={(e) => onChange({ ...form, growthRate: Number(e.target.value) || 0 })}
+            onChange={(e) =>
+              onChange({ ...form, growthRate: Number(e.target.value) || 0 })
+            }
           />
         </div>
       </Flex>
       <div>
-        <Text size="2" weight="medium" mb="1" asChild><span>Date</span></Text>
-        <TextField.Root type="date" value={date} onChange={(e) => onDateChange(e.target.value)} />
+        <Text size="2" weight="medium" mb="1" asChild>
+          <span>Date</span>
+        </Text>
+        <TextField.Root
+          type="date"
+          value={date}
+          onChange={(e) => onDateChange(e.target.value)}
+        />
       </div>
 
       <Card variant="surface">
-        <Flex direction="column" gap="2">
-          <Flex justify="between" align="center">
-            <Text size="2" weight="bold">Cash Sources</Text>
-            <Button
-              size="1"
-              variant="soft"
-              onClick={addAllocation}
-              disabled={cashAssets.filter((c) => !usedIds.has(c.id)).length === 0}
-            >
-              <Plus size={12} /> Add Source
-            </Button>
-          </Flex>
-          {form.allocations.map((alloc, idx) => {
-            const cashAsset = cashAssets.find((c) => c.id === alloc.cashAssetId);
-            const availableForRow = cashAssets.filter(
-              (c) => c.id === alloc.cashAssetId || !usedIds.has(c.id),
-            );
-            return (
-              <Flex key={alloc.cashAssetId || idx} gap="2" align="end">
-                <div style={{ flex: 2 }}>
-                  <Text size="1" color="gray">Source</Text>
-                  <Select.Root
-                    value={alloc.cashAssetId}
-                    onValueChange={(v) => updateAllocation(idx, { cashAssetId: v })}
-                  >
-                    <Select.Trigger style={{ width: '100%' }} />
-                    <Select.Content>
-                      {availableForRow.map((c) => (
-                        <Select.Item key={c.id} value={c.id}>
-                          {c.name} ({formatMoney(c.value.amount, c.value.currency)})
-                        </Select.Item>
-                      ))}
-                    </Select.Content>
-                  </Select.Root>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <Text size="1" color="gray">Amount</Text>
-                  <TextField.Root
-                    type="number"
-                    value={alloc.amount || ''}
-                    onChange={(e) => updateAllocation(idx, { amount: Number(e.target.value) || 0 })}
-                    max={cashAsset?.value.amount}
-                  />
-                </div>
-                <Button size="1" variant="ghost" color="red" onClick={() => removeAllocation(idx)}>
-                  <Trash2 size={14} />
-                </Button>
-              </Flex>
-            );
-          })}
-          {form.value > 0 && (
-            <Flex justify="between">
-              <Text size="2" color="gray">Allocated</Text>
-              <Text size="2" weight="bold" color={remaining === 0 ? 'green' : remaining > 0 ? 'orange' : 'red'}>
-                {formatMoney(allocatedTotal, form.currency)} / {formatMoney(form.value, form.currency)}
-              </Text>
-            </Flex>
-          )}
-        </Flex>
+        <CashAllocationsField
+          allocations={form.allocations}
+          cashAssets={cashAssets}
+          currency={form.currency}
+          totalValue={form.value}
+          onChange={(allocations) => onChange({ ...form, allocations })}
+        />
       </Card>
 
       {form.kind === 'flat' && (
@@ -800,10 +972,17 @@ function BuyAssetFields({
             {form.forLiving && (
               <>
                 <div>
-                  <Text size="2" weight="medium" mb="1" asChild><span>Remove Expense</span></Text>
+                  <Text size="2" weight="medium" mb="1" asChild>
+                    <span>Remove Expense</span>
+                  </Text>
                   <Select.Root
                     value={form.removeExpenseId || '__none__'}
-                    onValueChange={(v) => onChange({ ...form, removeExpenseId: v === '__none__' ? '' : v })}
+                    onValueChange={(v) =>
+                      onChange({
+                        ...form,
+                        removeExpenseId: v === '__none__' ? '' : v,
+                      })
+                    }
                   >
                     <Select.Trigger style={{ width: '100%' }} />
                     <Select.Content>
@@ -817,32 +996,52 @@ function BuyAssetFields({
                   </Select.Root>
                 </div>
                 <div>
-                  <Text size="2" weight="medium" mb="1" asChild><span>New Expense Name</span></Text>
+                  <Text size="2" weight="medium" mb="1" asChild>
+                    <span>New Expense Name</span>
+                  </Text>
                   <TextField.Root
                     value={form.newExpenseName}
-                    onChange={(e) => onChange({ ...form, newExpenseName: e.target.value })}
+                    onChange={(e) =>
+                      onChange({ ...form, newExpenseName: e.target.value })
+                    }
                     placeholder="e.g. Building Fees"
                   />
                 </div>
                 <Flex gap="3">
                   <div style={{ flex: 1 }}>
-                    <Text size="2" weight="medium" mb="1" asChild><span>Amount</span></Text>
+                    <Text size="2" weight="medium" mb="1" asChild>
+                      <span>Amount</span>
+                    </Text>
                     <TextField.Root
                       type="number"
                       value={form.newExpenseAmount || ''}
-                      onChange={(e) => onChange({ ...form, newExpenseAmount: Number(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        onChange({
+                          ...form,
+                          newExpenseAmount: Number(e.target.value) || 0,
+                        })
+                      }
                     />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <Text size="2" weight="medium" mb="1" asChild><span>Frequency</span></Text>
+                    <Text size="2" weight="medium" mb="1" asChild>
+                      <span>Frequency</span>
+                    </Text>
                     <Select.Root
                       value={form.newExpenseFrequency}
-                      onValueChange={(v) => onChange({ ...form, newExpenseFrequency: v as Frequency })}
+                      onValueChange={(v) =>
+                        onChange({
+                          ...form,
+                          newExpenseFrequency: v as Frequency,
+                        })
+                      }
                     >
                       <Select.Trigger style={{ width: '100%' }} />
                       <Select.Content>
                         {FREQUENCIES.map((f) => (
-                          <Select.Item key={f} value={f}>{FREQ_LABELS[f]}</Select.Item>
+                          <Select.Item key={f} value={f}>
+                            {FREQ_LABELS[f]}
+                          </Select.Item>
                         ))}
                       </Select.Content>
                     </Select.Root>
@@ -857,7 +1056,10 @@ function BuyAssetFields({
   );
 }
 
-const TYPE_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange' | 'purple'> = {
+const TYPE_COLORS: Record<
+  string,
+  'green' | 'red' | 'blue' | 'orange' | 'purple'
+> = {
   Income: 'green',
   Expense: 'red',
   Asset: 'blue',
@@ -867,7 +1069,19 @@ const TYPE_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange' | 'purple'
   'Repay Loan': 'purple',
 };
 
-export default function StrategyPanel({ strategy, events, liabilities, cashAssets, expenses, baselineSnapshots, onAddEvent, onUpdateEvent, onRemoveEvent, onApply, onDiscard }: Props) {
+export default function StrategyPanel({
+  strategy,
+  events,
+  liabilities,
+  cashAssets,
+  expenses,
+  baselineSnapshots,
+  onAddEvent,
+  onUpdateEvent,
+  onRemoveEvent,
+  onApply,
+  onDiscard,
+}: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [eventType, setEventType] = useState<StrategyEventType>('add_income');
@@ -964,8 +1178,16 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
         input = buildAddAssetInput(assetForm, date);
         break;
       case 'buy_asset': {
-        const total = buyAssetForm.allocations.reduce((s, a) => s + a.amount, 0);
-        if (!buyAssetForm.name.trim() || buyAssetForm.value <= 0 || total !== buyAssetForm.value) return;
+        const total = buyAssetForm.allocations.reduce(
+          (s, a) => s + a.amount,
+          0,
+        );
+        if (
+          !buyAssetForm.name.trim() ||
+          buyAssetForm.value <= 0 ||
+          total !== buyAssetForm.value
+        )
+          return;
         input = buildBuyAssetInput(buyAssetForm, date);
         break;
       }
@@ -1005,15 +1227,32 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
             <Flex gap="2">
               {hasEvents && (
                 <>
-                  <Button size="1" variant="soft" color="red" onClick={() => setDiscardOpen(true)}>
+                  <Button
+                    size="1"
+                    variant="soft"
+                    color="red"
+                    onClick={() => setDiscardOpen(true)}
+                  >
                     Discard
                   </Button>
-                  <Button size="1" variant="soft" color="green" onClick={() => setApplyOpen(true)}>
+                  <Button
+                    size="1"
+                    variant="soft"
+                    color="green"
+                    onClick={() => setApplyOpen(true)}
+                  >
                     Apply
                   </Button>
                 </>
               )}
-              <Button size="1" onClick={() => { resetForms(); setEditingIndex(null); setDialogOpen(true); }}>
+              <Button
+                size="1"
+                onClick={() => {
+                  resetForms();
+                  setEditingIndex(null);
+                  setDialogOpen(true);
+                }}
+              >
                 <Plus size={14} />
                 Add Event
               </Button>
@@ -1022,7 +1261,8 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
 
           {!hasEvents && (
             <Text size="2" color="gray">
-              No strategy events yet. Add planned events to see their impact on the simulation.
+              No strategy events yet. Add planned events to see their impact on
+              the simulation.
             </Text>
           )}
 
@@ -1034,7 +1274,10 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
                 return (
                   <Flex key={key} justify="between" align="center" gap="3">
                     <Flex align="center" gap="2" style={{ minWidth: 0 }}>
-                      <Badge size="1" color={TYPE_COLORS[desc.typeLabel] ?? 'gray'}>
+                      <Badge
+                        size="1"
+                        color={TYPE_COLORS[desc.typeLabel] ?? 'gray'}
+                      >
                         {desc.typeLabel}
                       </Badge>
                       <Text size="2" weight="medium" truncate>
@@ -1048,10 +1291,19 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
                       </Badge>
                     </Flex>
                     <Flex gap="1">
-                      <Button size="1" variant="ghost" onClick={() => handleEdit(idx)}>
+                      <Button
+                        size="1"
+                        variant="ghost"
+                        onClick={() => handleEdit(idx)}
+                      >
                         <Pencil size={14} />
                       </Button>
-                      <Button size="1" variant="ghost" color="red" onClick={() => onRemoveEvent(idx)}>
+                      <Button
+                        size="1"
+                        variant="ghost"
+                        color="red"
+                        onClick={() => onRemoveEvent(idx)}
+                      >
                         <Trash2 size={14} />
                       </Button>
                     </Flex>
@@ -1065,28 +1317,55 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
 
       <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
         <Dialog.Content maxWidth="520px">
-          <Dialog.Title>{editingIndex !== null ? 'Edit Strategy Event' : 'Add Strategy Event'}</Dialog.Title>
+          <Dialog.Title>
+            {editingIndex !== null
+              ? 'Edit Strategy Event'
+              : 'Add Strategy Event'}
+          </Dialog.Title>
           <Flex direction="column" gap="3" mt="3">
             <div>
-              <Text size="2" weight="medium" mb="1" asChild><span>Event Type</span></Text>
-              <Select.Root value={eventType} onValueChange={(v) => setEventType(v as StrategyEventType)} disabled={editingIndex !== null}>
+              <Text size="2" weight="medium" mb="1" asChild>
+                <span>Event Type</span>
+              </Text>
+              <Select.Root
+                value={eventType}
+                onValueChange={(v) => setEventType(v as StrategyEventType)}
+                disabled={editingIndex !== null}
+              >
                 <Select.Trigger style={{ width: '100%' }} />
                 <Select.Content>
                   {EVENT_TYPES.map((t) => (
-                    <Select.Item key={t.value} value={t.value}>{t.label}</Select.Item>
+                    <Select.Item key={t.value} value={t.value}>
+                      {t.label}
+                    </Select.Item>
                   ))}
                 </Select.Content>
               </Select.Root>
             </div>
 
             {eventType === 'add_income' && (
-              <IncomeFields form={incomeForm} onChange={setIncomeForm} date={date} onDateChange={setDate} />
+              <IncomeFields
+                form={incomeForm}
+                onChange={setIncomeForm}
+                date={date}
+                onDateChange={setDate}
+              />
             )}
             {eventType === 'add_expense' && (
-              <ExpenseFields form={expenseForm} onChange={setExpenseForm} date={date} onDateChange={setDate} />
+              <ExpenseFields
+                form={expenseForm}
+                onChange={setExpenseForm}
+                date={date}
+                onDateChange={setDate}
+              />
             )}
             {eventType === 'add_asset' && (
-              <AssetFields form={assetForm} onChange={setAssetForm} date={date} onDateChange={setDate} />
+              <AssetFields
+                form={assetForm}
+                onChange={setAssetForm}
+                date={date}
+                onDateChange={setDate}
+              />
             )}
             {eventType === 'buy_asset' && (
               <BuyAssetFields
@@ -1111,6 +1390,7 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
                 date={date}
                 onDateChange={setDate}
                 liabilities={liabilities}
+                cashAssets={cashAssets}
                 events={events}
                 baselineSnapshots={baselineSnapshots}
               />
@@ -1119,9 +1399,13 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
 
           <Flex gap="3" mt="4" justify="end">
             <Dialog.Close>
-              <Button variant="soft" color="gray">Cancel</Button>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
             </Dialog.Close>
-            <Button onClick={handleSave}>{editingIndex !== null ? 'Save Changes' : 'Add to Strategy'}</Button>
+            <Button onClick={handleSave}>
+              {editingIndex !== null ? 'Save Changes' : 'Add to Strategy'}
+            </Button>
           </Flex>
         </Dialog.Content>
       </Dialog.Root>
@@ -1131,11 +1415,17 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
           <AlertDialog.Title>Apply Strategy</AlertDialog.Title>
           <AlertDialog.Description>
             <Flex direction="column" gap="1">
-              <Text>This will add {strategy.events.length} event(s) to your data:</Text>
+              <Text>
+                This will add {strategy.events.length} event(s) to your data:
+              </Text>
               {strategy.events.map((event) => {
                 const desc = describeEvent(event);
                 return (
-                  <Text key={`${desc.typeLabel}-${desc.name}-${desc.date}`} size="2" color="gray">
+                  <Text
+                    key={`${desc.typeLabel}-${desc.name}-${desc.date}`}
+                    size="2"
+                    color="gray"
+                  >
                     • {desc.typeLabel}: {desc.name} ({desc.date})
                   </Text>
                 );
@@ -1144,10 +1434,14 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">Cancel</Button>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
             </AlertDialog.Cancel>
             <AlertDialog.Action>
-              <Button color="green" onClick={onApply}>Apply</Button>
+              <Button color="green" onClick={onApply}>
+                Apply
+              </Button>
             </AlertDialog.Action>
           </Flex>
         </AlertDialog.Content>
@@ -1161,10 +1455,14 @@ export default function StrategyPanel({ strategy, events, liabilities, cashAsset
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">Cancel</Button>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
             </AlertDialog.Cancel>
             <AlertDialog.Action>
-              <Button color="red" onClick={onDiscard}>Discard</Button>
+              <Button color="red" onClick={onDiscard}>
+                Discard
+              </Button>
             </AlertDialog.Action>
           </Flex>
         </AlertDialog.Content>
