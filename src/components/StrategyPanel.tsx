@@ -1108,6 +1108,7 @@ export default function StrategyPanel({
   const [buyAssetForm, setBuyAssetForm] = useState(emptyBuyAssetForm);
   const [applyOpen, setApplyOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
 
   const resetForms = () => {
     setDate(todayStr());
@@ -1315,7 +1316,7 @@ export default function StrategyPanel({
                         size="1"
                         variant="ghost"
                         color="red"
-                        onClick={() => onRemoveEvent(idx)}
+                        onClick={() => setDeleteIndex(idx)}
                       >
                         <Trash2 size={14} />
                       </Button>
@@ -1479,6 +1480,46 @@ export default function StrategyPanel({
             <AlertDialog.Action>
               <Button color="red" onClick={onDiscard}>
                 Discard
+              </Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root
+        open={deleteIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteIndex(null);
+        }}
+      >
+        <AlertDialog.Content maxWidth="400px">
+          <AlertDialog.Title>Remove Event</AlertDialog.Title>
+          <AlertDialog.Description>
+            {deleteIndex !== null &&
+              (() => {
+                const desc = describeEvent(strategy.events[deleteIndex]);
+                return (
+                  <>
+                    Remove {desc.typeLabel}: {desc.name} ({desc.date})?
+                  </>
+                );
+              })()}
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray">
+                Cancel
+              </Button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action>
+              <Button
+                color="red"
+                onClick={() => {
+                  if (deleteIndex !== null) onRemoveEvent(deleteIndex);
+                  setDeleteIndex(null);
+                }}
+              >
+                Remove
               </Button>
             </AlertDialog.Action>
           </Flex>
