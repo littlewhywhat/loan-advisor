@@ -18,7 +18,10 @@ function ownsEntity(e: FinanceEvent, entityId: string): boolean {
     case 'add_asset':
       return e.asset.id === entityId;
     case 'buy_asset':
-      return e.asset.id === entityId || (!!e.newExpense && e.newExpense.id === entityId);
+      return (
+        e.asset.id === entityId ||
+        (!!e.newExpense && e.newExpense.id === entityId)
+      );
     case 'add_income':
       return e.income.id === entityId;
     case 'add_expense':

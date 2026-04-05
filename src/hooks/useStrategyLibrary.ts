@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AppMode } from '@/hooks/useEventStore';
-import type {
-  NewEventInput,
-  Strategy,
-  StrategyLibrary,
-} from '@/types/events';
+import type { NewEventInput, Strategy, StrategyLibrary } from '@/types/events';
 import { MAX_STRATEGIES } from '@/types/events';
 
 function storageKey(mode: AppMode): string {
@@ -22,7 +18,8 @@ function migrate(mode: AppMode): StrategyLibrary | null {
     const raw = localStorage.getItem(legacyKey(mode));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed?.events) || parsed.events.length === 0) return null;
+    if (!Array.isArray(parsed?.events) || parsed.events.length === 0)
+      return null;
     const migrated: Strategy = {
       id: crypto.randomUUID(),
       name: parsed.name || 'Strategy 1',
@@ -49,7 +46,9 @@ function loadLibrary(mode: AppMode): StrategyLibrary {
 }
 
 export function useStrategyLibrary(mode: AppMode) {
-  const [library, setLibrary] = useState<StrategyLibrary>(() => loadLibrary(mode));
+  const [library, setLibrary] = useState<StrategyLibrary>(() =>
+    loadLibrary(mode),
+  );
 
   useEffect(() => {
     setLibrary(loadLibrary(mode));
@@ -59,7 +58,8 @@ export function useStrategyLibrary(mode: AppMode) {
     localStorage.setItem(storageKey(mode), JSON.stringify(library));
   }, [library, mode]);
 
-  const activeStrategy = library.strategies.find((s) => s.id === library.activeId) ?? null;
+  const activeStrategy =
+    library.strategies.find((s) => s.id === library.activeId) ?? null;
 
   const addStrategy = useCallback((name: string) => {
     setLibrary((prev) => {
@@ -96,7 +96,9 @@ export function useStrategyLibrary(mode: AppMode) {
   const renameStrategy = useCallback((id: string, name: string) => {
     setLibrary((prev) => ({
       ...prev,
-      strategies: prev.strategies.map((s) => (s.id === id ? { ...s, name } : s)),
+      strategies: prev.strategies.map((s) =>
+        s.id === id ? { ...s, name } : s,
+      ),
     }));
   }, []);
 
@@ -124,22 +126,31 @@ export function useStrategyLibrary(mode: AppMode) {
     }));
   }, []);
 
-  const updateStrategyEvent = useCallback((index: number, event: NewEventInput) => {
-    setLibrary((prev) => ({
-      ...prev,
-      strategies: prev.strategies.map((s) =>
-        s.id === prev.activeId
-          ? { ...s, events: s.events.map((e, i) => (i === index ? event : e)) }
-          : s,
-      ),
-    }));
-  }, []);
+  const updateStrategyEvent = useCallback(
+    (index: number, event: NewEventInput) => {
+      setLibrary((prev) => ({
+        ...prev,
+        strategies: prev.strategies.map((s) =>
+          s.id === prev.activeId
+            ? {
+                ...s,
+                events: s.events.map((e, i) => (i === index ? event : e)),
+              }
+            : s,
+        ),
+      }));
+    },
+    [],
+  );
 
   const clearStrategy = useCallback((id: string) => {
     setLibrary((prev) => ({
       ...prev,
       strategies: prev.strategies.filter((s) => s.id !== id),
-      activeId: prev.activeId === id ? (prev.strategies.find((s) => s.id !== id)?.id ?? null) : prev.activeId,
+      activeId:
+        prev.activeId === id
+          ? (prev.strategies.find((s) => s.id !== id)?.id ?? null)
+          : prev.activeId,
     }));
   }, []);
 

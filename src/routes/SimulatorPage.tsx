@@ -23,18 +23,18 @@ import {
 } from 'recharts';
 import StrategyPanel from '@/components/StrategyPanel';
 import { useEvents } from '@/context/EventProvider';
+import { useStrategyLibrary } from '@/hooks/useStrategyLibrary';
 import { deriveState } from '@/lib/deriveState';
 import { formatMoney } from '@/lib/format';
 import {
-  runMultiStrategySimulation,
   type MonthSnapshot,
   type MultiStrategyResult,
+  runMultiStrategySimulation,
   type SimulatorConfig,
   type StrategyProjection,
 } from '@/lib/simulate';
-import { useStrategyLibrary } from '@/hooks/useStrategyLibrary';
-import { MAX_STRATEGIES } from '@/types/events';
 import type { Cash } from '@/types/events';
+import { MAX_STRATEGIES } from '@/types/events';
 
 const SYNC_ID = 'simulator-sync';
 const MOBILE_QUERY = '(max-width: 768px)';
@@ -85,7 +85,9 @@ function mergeForChart(
 ): CombinedPoint[] {
   return baseline.map((b, i) => ({
     ...b,
-    strategyValue: strategy ? (strategy[i]?.[dataKey] as number) ?? null : null,
+    strategyValue: strategy
+      ? ((strategy[i]?.[dataKey] as number) ?? null)
+      : null,
   }));
 }
 
@@ -120,11 +122,22 @@ function SimpleChart({
           <Flex gap="3" align="center">
             <Flex align="center" gap="1">
               <div style={{ width: 16, height: 2, background: color }} />
-              <Text size="1" color="gray">Baseline</Text>
+              <Text size="1" color="gray">
+                Baseline
+              </Text>
             </Flex>
             <Flex align="center" gap="1">
-              <div style={{ width: 16, height: 0, borderTop: `2px dashed ${color}`, opacity: 0.6 }} />
-              <Text size="1" color="gray">Strategy</Text>
+              <div
+                style={{
+                  width: 16,
+                  height: 0,
+                  borderTop: `2px dashed ${color}`,
+                  opacity: 0.6,
+                }}
+              />
+              <Text size="1" color="gray">
+                Strategy
+              </Text>
             </Flex>
           </Flex>
         )}
@@ -203,7 +216,11 @@ function Row({
         <Text
           size="2"
           color={indent ? 'gray' : undefined}
-          style={strikethrough ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
+          style={
+            strikethrough
+              ? { textDecoration: 'line-through', opacity: 0.5 }
+              : undefined
+          }
         >
           {label}
         </Text>
@@ -217,7 +234,11 @@ function Row({
         size="2"
         weight="bold"
         color={color}
-        style={strikethrough ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}
+        style={
+          strikethrough
+            ? { textDecoration: 'line-through', opacity: 0.5 }
+            : undefined
+        }
       >
         {value}
       </Text>
@@ -306,7 +327,9 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
           </Text>
           {snapshot.assets.map((a) => {
             const depleted = a.value === 0;
-            const style = depleted ? { textDecoration: 'line-through' as const, opacity: 0.5 } : undefined;
+            const style = depleted
+              ? { textDecoration: 'line-through' as const, opacity: 0.5 }
+              : undefined;
             return (
               <Flex key={a.id} justify="between" align="center" pl="4">
                 <Flex align="center" gap="2">
@@ -317,7 +340,9 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
                     {a.kind}
                   </Badge>
                   {a.isStrategy && (
-                    <Badge size="1" variant="soft" color="purple">strategy</Badge>
+                    <Badge size="1" variant="soft" color="purple">
+                      strategy
+                    </Badge>
                   )}
                 </Flex>
                 <Text size="2" weight="bold" style={style}>
@@ -341,7 +366,10 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
               </Text>
             </Flex>
           )}
-          <Row label="Total Assets" value={fmt(snapshot.totalAssets + snapshot.cashReserve)} />
+          <Row
+            label="Total Assets"
+            value={fmt(snapshot.totalAssets + snapshot.cashReserve)}
+          />
 
           <Separator size="4" />
 
@@ -350,7 +378,9 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
           </Text>
           {snapshot.liabilities.map((l) => {
             const paidOff = l.balance === 0;
-            const style = paidOff ? { textDecoration: 'line-through' as const, opacity: 0.5 } : undefined;
+            const style = paidOff
+              ? { textDecoration: 'line-through' as const, opacity: 0.5 }
+              : undefined;
             return (
               <Flex key={l.id} justify="between" align="center" pl="4">
                 <Flex align="center" gap="2">
@@ -361,7 +391,9 @@ function SnapshotDetail({ snapshot }: { snapshot: MonthSnapshot }) {
                     {l.kind}
                   </Badge>
                   {l.isStrategy && (
-                    <Badge size="1" variant="soft" color="purple">strategy</Badge>
+                    <Badge size="1" variant="soft" color="purple">
+                      strategy
+                    </Badge>
                   )}
                 </Flex>
                 <Text size="2" weight="bold" style={style}>
@@ -425,12 +457,18 @@ function StrategyColumn({
   viewMonth: number;
   viewYear: number;
 }) {
-  const viewIndex = findSnapshotIndex(projection.snapshots, viewMonth, viewYear);
+  const viewIndex = findSnapshotIndex(
+    projection.snapshots,
+    viewMonth,
+    viewYear,
+  );
   const snapshot = viewIndex != null ? projection.snapshots[viewIndex] : null;
 
   return (
     <Flex direction="column" gap="4" style={{ flex: '1 1 0', minWidth: 0 }}>
-      <Heading size="4" color="purple">{projection.name}</Heading>
+      <Heading size="4" color="purple">
+        {projection.name}
+      </Heading>
       <SimpleChart
         title="Net Worth"
         dataKey="netWorth"
@@ -540,14 +578,20 @@ function StrategyListBar({
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={commitRename}
-                  onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename();
+                  }}
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                   style={{ flex: 1 }}
                 />
               ) : (
                 <>
-                  <Text size="2" weight={s.id === activeId ? 'bold' : 'medium'} truncate>
+                  <Text
+                    size="2"
+                    weight={s.id === activeId ? 'bold' : 'medium'}
+                    truncate
+                  >
                     {s.name}
                   </Text>
                   <Badge size="1" variant="soft" color="gray">
@@ -557,7 +601,11 @@ function StrategyListBar({
               )}
             </Flex>
             <Flex gap="1" onClick={(e) => e.stopPropagation()}>
-              <IconButton size="1" variant="ghost" onClick={() => startRename(s.id, s.name)}>
+              <IconButton
+                size="1"
+                variant="ghost"
+                onClick={() => startRename(s.id, s.name)}
+              >
                 <Pencil size={12} />
               </IconButton>
               <IconButton
@@ -568,7 +616,12 @@ function StrategyListBar({
               >
                 <Copy size={12} />
               </IconButton>
-              <IconButton size="1" variant="ghost" color="red" onClick={() => onRemove(s.id)}>
+              <IconButton
+                size="1"
+                variant="ghost"
+                color="red"
+                onClick={() => onRemove(s.id)}
+              >
                 <Trash2 size={12} />
               </IconButton>
             </Flex>
@@ -633,13 +686,15 @@ export default function SimulatorPage() {
   const nonEmptyProjections = result.strategies;
 
   const activeProjection = activeStrategy
-    ? nonEmptyProjections.find((p) => p.id === activeStrategy.id) ?? null
+    ? (nonEmptyProjections.find((p) => p.id === activeStrategy.id) ?? null)
     : null;
-  const activeSnapshots = activeProjection ? activeProjection.snapshots : result.baseline;
+  const activeSnapshots = activeProjection
+    ? activeProjection.snapshots
+    : result.baseline;
   const viewIndex = findSnapshotIndex(activeSnapshots, viewMonth, viewYear);
-  const selectedSnapshot = viewIndex != null ? activeSnapshots[viewIndex] : null;
+  const selectedSnapshot =
+    viewIndex != null ? activeSnapshots[viewIndex] : null;
   const selectedMonthIndex = selectedSnapshot?.monthIndex ?? null;
-
 
   const handleApply = (id: string) => {
     applyStrategy(id, addEvent);
@@ -672,7 +727,9 @@ export default function SimulatorPage() {
                   const v = parseInt(e.target.value, 10);
                   if (!Number.isNaN(v)) setTargetMonth(v);
                 }}
-                onBlur={() => setTargetMonth((v) => Math.max(1, Math.min(12, v)))}
+                onBlur={() =>
+                  setTargetMonth((v) => Math.max(1, Math.min(12, v)))
+                }
                 onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
@@ -689,7 +746,11 @@ export default function SimulatorPage() {
                   const v = parseInt(e.target.value, 10);
                   if (!Number.isNaN(v)) setTargetYear(v);
                 }}
-                onBlur={() => setTargetYear((v) => Math.max(new Date().getFullYear(), Math.min(2100, v)))}
+                onBlur={() =>
+                  setTargetYear((v) =>
+                    Math.max(new Date().getFullYear(), Math.min(2100, v)),
+                  )
+                }
                 onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
@@ -707,7 +768,9 @@ export default function SimulatorPage() {
                   const v = parseFloat(e.target.value);
                   if (!Number.isNaN(v)) setCashReserveGrowthRate(v);
                 }}
-                onBlur={() => setCashReserveGrowthRate((v) => Math.max(0, Math.min(100, v)))}
+                onBlur={() =>
+                  setCashReserveGrowthRate((v) => Math.max(0, Math.min(100, v)))
+                }
                 onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
@@ -749,7 +812,11 @@ export default function SimulatorPage() {
                   const v = parseInt(e.target.value, 10);
                   if (!Number.isNaN(v)) setViewYear(v);
                 }}
-                onBlur={() => setViewYear((v) => Math.max(new Date().getFullYear(), Math.min(2100, v)))}
+                onBlur={() =>
+                  setViewYear((v) =>
+                    Math.max(new Date().getFullYear(), Math.min(2100, v)),
+                  )
+                }
                 onWheel={(e) => (e.target as HTMLElement).blur()}
               />
             </Flex>
@@ -777,7 +844,9 @@ export default function SimulatorPage() {
           strategy={activeStrategy}
           events={events}
           liabilities={strategyDerived.liabilities}
-          cashAssets={strategyDerived.assets.filter((a): a is Cash => a.kind === 'cash')}
+          cashAssets={strategyDerived.assets.filter(
+            (a): a is Cash => a.kind === 'cash',
+          )}
           expenses={strategyDerived.expenses}
           baselineSnapshots={activeProjection?.snapshots ?? result.baseline}
           onAddEvent={addStrategyEvent}
@@ -847,15 +916,18 @@ export default function SimulatorPage() {
         </Flex>
       )}
 
-      {hasData && nonEmptyProjections.length > 1 && isMobile && activeProjection && (
-        <StrategyColumn
-          projection={activeProjection}
-          baseline={result.baseline}
-          selectedMonthIndex={selectedMonthIndex}
-          viewMonth={viewMonth}
-          viewYear={viewYear}
-        />
-      )}
+      {hasData &&
+        nonEmptyProjections.length > 1 &&
+        isMobile &&
+        activeProjection && (
+          <StrategyColumn
+            projection={activeProjection}
+            baseline={result.baseline}
+            selectedMonthIndex={selectedMonthIndex}
+            viewMonth={viewMonth}
+            viewYear={viewYear}
+          />
+        )}
     </Flex>
   );
 }
