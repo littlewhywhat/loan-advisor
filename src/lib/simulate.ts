@@ -1,12 +1,17 @@
+import { applyEvents, deriveState } from '@/lib/deriveState';
 import { toMonthly } from '@/lib/format';
 import {
-  monthsBetween,
-  monthlyPaymentFromMonths,
   elapsedMonths,
+  monthlyPaymentFromMonths,
+  monthsBetween,
   remainingBalance,
 } from '@/lib/loanCalc';
-import { applyEvents, deriveState } from '@/lib/deriveState';
-import type { DerivedState, FinanceEvent, NewEventInput, Strategy } from '@/types/events';
+import type {
+  DerivedState,
+  FinanceEvent,
+  NewEventInput,
+  Strategy,
+} from '@/types/events';
 
 export type SimulatorConfig = {
   targetMonth: number;
@@ -109,9 +114,18 @@ function computeLiabilityRuntime(
   const runtime = new Map<string, LiabilityRuntime>();
   for (const l of derived.liabilities) {
     const totalMonths = monthsBetween(l.startDate, l.endDate);
-    const mp = monthlyPaymentFromMonths(l.value.amount, l.interestRate, totalMonths);
+    const mp = monthlyPaymentFromMonths(
+      l.value.amount,
+      l.interestRate,
+      totalMonths,
+    );
     const elapsed = elapsedMonths(l.startDate);
-    const balance = remainingBalance(l.value.amount, l.interestRate, mp, elapsed);
+    const balance = remainingBalance(
+      l.value.amount,
+      l.interestRate,
+      mp,
+      elapsed,
+    );
     runtime.set(l.id, {
       balance,
       monthlyPayment: mp,
@@ -147,7 +161,11 @@ function injectScheduledEvents(
   for (const l of state.derived.liabilities) {
     if (prevLiabilityIds.has(l.id)) continue;
     const totalMonths = monthsBetween(l.startDate, l.endDate);
-    const mp = monthlyPaymentFromMonths(l.value.amount, l.interestRate, totalMonths);
+    const mp = monthlyPaymentFromMonths(
+      l.value.amount,
+      l.interestRate,
+      totalMonths,
+    );
     state.liabilityRuntime.set(l.id, {
       balance: l.value.amount,
       monthlyPayment: mp,
@@ -157,15 +175,37 @@ function injectScheduledEvents(
   }
 
   for (const event of events) {
+    if (
+      event.type === 'take_mortgage' &&
+      event.mortgage.downPayment.amount > 0
+    ) {
+      const allocatedTotal = (event.allocations ?? []).reduce(
+        (sum, a) => sum + a.amount.amount,
+        0,
+      );
+      const fromCashReserve =
+        event.mortgage.downPayment.amount - allocatedTotal;
+      if (fromCashReserve > 0) {
+        state.cashReserve = Math.max(0, state.cashReserve - fromCashReserve);
+      }
+    }
     if (event.type !== 'repay_loan') continue;
-    state.cashReserve = Math.max(0, state.cashReserve - event.repaymentAmount.amount);
+    const allocatedTotal = (event.allocations ?? []).reduce(
+      (sum, a) => sum + a.amount.amount,
+      0,
+    );
+    const fromCashReserve = event.repaymentAmount.amount - allocatedTotal;
+    if (fromCashReserve > 0) {
+      state.cashReserve = Math.max(0, state.cashReserve - fromCashReserve);
+    }
     const runtime = state.liabilityRuntime.get(event.liabilityId);
     if (runtime) {
       runtime.balance = event.newPrincipal.amount;
       runtime.monthlyPayment = event.newMonthlyPayment.amount;
       if (runtime.balance <= 0) {
         runtime.paidOff = true;
-        if (runtime.linkedExpenseId) state.paidOffExpenseIds.add(runtime.linkedExpenseId);
+        if (runtime.linkedExpenseId)
+          state.paidOffExpenseIds.add(runtime.linkedExpenseId);
       }
     }
   }
@@ -177,11 +217,15 @@ function advanceOneMonth(state: SimState, cashReserveGrowthRate: number): void {
     if (!runtime || runtime.paidOff) continue;
     const r = l.interestRate / 12;
     const interest = runtime.balance * r;
-    const principalPortion = Math.min(runtime.monthlyPayment - interest, runtime.balance);
+    const principalPortion = Math.min(
+      runtime.monthlyPayment - interest,
+      runtime.balance,
+    );
     runtime.balance = Math.max(0, runtime.balance - principalPortion);
     if (runtime.balance <= 0) {
       runtime.paidOff = true;
-      if (runtime.linkedExpenseId) state.paidOffExpenseIds.add(runtime.linkedExpenseId);
+      if (runtime.linkedExpenseId)
+        state.paidOffExpenseIds.add(runtime.linkedExpenseId);
     }
   }
 
@@ -222,13 +266,19 @@ function buildSnapshot(
     .filter((e) => !state.paidOffExpenseIds.has(e.id))
     .reduce((sum, exp) => sum + toMonthly(exp.amount.amount, exp.frequency), 0);
   const cashFlow = totalIncome - totalExpenses;
-  const totalAssets = state.derived.assets.reduce((sum, a) => sum + a.value.amount, 0);
+  const totalAssets = state.derived.assets.reduce(
+    (sum, a) => sum + a.value.amount,
+    0,
+  );
   const totalLiabilities = Array.from(state.liabilityRuntime.values()).reduce(
     (sum, r) => sum + r.balance,
     0,
   );
   const netWorth =
-    totalAssets + state.cashReserve - totalLiabilities - state.accumulatedDeficit;
+    totalAssets +
+    state.cashReserve -
+    totalLiabilities -
+    state.accumulatedDeficit;
 
   return {
     month,
@@ -275,7 +325,9 @@ function buildSnapshot(
   };
 }
 
-function buildScheduleMap(events: ScheduledEvent[]): Map<string, FinanceEvent[]> {
+function buildScheduleMap(
+  events: ScheduledEvent[],
+): Map<string, FinanceEvent[]> {
   const map = new Map<string, FinanceEvent[]>();
   for (const se of events) {
     const key = `${se.year}-${se.month}`;
@@ -335,9 +387,12 @@ function projectSnapshots(
 
 function collectEntityIds(event: FinanceEvent): string[] {
   switch (event.type) {
-    case 'add_income': return [event.income.id];
-    case 'add_expense': return [event.expense.id];
-    case 'add_asset': return [event.asset.id];
+    case 'add_income':
+      return [event.income.id];
+    case 'add_expense':
+      return [event.expense.id];
+    case 'add_asset':
+      return [event.asset.id];
     case 'buy_asset': {
       const ids = [event.asset.id];
       if (event.newExpense) ids.push(event.newExpense.id);
@@ -348,9 +403,12 @@ function collectEntityIds(event: FinanceEvent): string[] {
       if (event.rental) ids.push(event.income.id);
       return ids;
     }
-    case 'take_personal_loan': return [event.loan.id, event.cash.id, event.expense.id];
-    case 'repay_loan': return [];
-    case 'manual_correction': return [];
+    case 'take_personal_loan':
+      return [event.loan.id, event.cash.id, event.expense.id];
+    case 'repay_loan':
+      return [];
+    case 'manual_correction':
+      return [];
   }
 }
 
@@ -375,9 +433,7 @@ export function runSimulation(
     status: 'active' as const,
   })) as FinanceEvent[];
 
-  const strategyEntityIds = new Set(
-    strategyAsEvents.flatMap(collectEntityIds),
-  );
+  const strategyEntityIds = new Set(strategyAsEvents.flatMap(collectEntityIds));
 
   const immediateEvents: FinanceEvent[] = [];
   const scheduledEvents: ScheduledEvent[] = [];

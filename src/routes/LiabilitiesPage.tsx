@@ -1017,8 +1017,8 @@ export default function LiabilitiesPage() {
         <AlertDialog.Content maxWidth="400px">
           <AlertDialog.Title>Archive Event</AlertDialog.Title>
           <AlertDialog.Description>
-            Archiving <strong>{archiveTarget?.name}</strong> will also remove the
-            linked asset, expense, and any rental income. Continue?
+            Archiving <strong>{archiveTarget?.name}</strong> will also remove
+            the linked asset, expense, and any rental income. Continue?
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Cancel>

@@ -1,5 +1,10 @@
-import { monthlyPayment, monthlyPaymentFromMonths, monthsBetween, remainingBalance } from '@/lib/loanCalc';
 import { formatMoney, toMonthly } from '@/lib/format';
+import {
+  monthlyPayment,
+  monthlyPaymentFromMonths,
+  monthsBetween,
+  remainingBalance,
+} from '@/lib/loanCalc';
 import type {
   Asset,
   CashAllocation,
@@ -46,6 +51,7 @@ export type MortgageFormData = {
   rental: boolean;
   rentalIncomeName: string;
   rentalIncomeAmount: number;
+  allocations: BuyAssetFormAllocation[];
   existingMortgageId?: string;
   existingFlatId?: string;
   existingExpenseId?: string;
@@ -74,6 +80,7 @@ export type RepayLoanFormData = {
   interestRate: number;
   loanStartDate: string;
   loanEndDate: string;
+  allocations: BuyAssetFormAllocation[];
 };
 
 export type BuyAssetFormAllocation = {
@@ -107,7 +114,11 @@ function addMonths(dateStr: string, months: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function monthsToPayoff(principal: number, annualRate: number, payment: number): number {
+function monthsToPayoff(
+  principal: number,
+  annualRate: number,
+  payment: number,
+): number {
   if (principal <= 0) return 0;
   const r = annualRate / 12;
   if (r === 0) return Math.ceil(principal / payment);
@@ -122,7 +133,10 @@ function addYears(dateStr: string, years: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function buildAddIncomeInput(form: IncomeFormData, date: string): NewEventInput {
+export function buildAddIncomeInput(
+  form: IncomeFormData,
+  date: string,
+): NewEventInput {
   return {
     type: 'add_income',
     date,
@@ -135,7 +149,10 @@ export function buildAddIncomeInput(form: IncomeFormData, date: string): NewEven
   };
 }
 
-export function buildAddExpenseInput(form: ExpenseFormData, date: string): NewEventInput {
+export function buildAddExpenseInput(
+  form: ExpenseFormData,
+  date: string,
+): NewEventInput {
   return {
     type: 'add_expense',
     date,
@@ -148,7 +165,10 @@ export function buildAddExpenseInput(form: ExpenseFormData, date: string): NewEv
   };
 }
 
-export function buildAddAssetInput(form: AssetFormData, date: string): NewEventInput {
+export function buildAddAssetInput(
+  form: AssetFormData,
+  date: string,
+): NewEventInput {
   return {
     type: 'add_asset',
     date,
@@ -168,6 +188,13 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
   const endDate = addYears(form.startDate, form.termYears);
   const flatValue = form.loanValue + form.downPayment;
   const mp = Math.round(monthlyPayment(form.loanValue, rate, form.termYears));
+
+  const allocations: CashAllocation[] = form.allocations
+    .filter((a) => a.amount > 0)
+    .map((a) => ({
+      cashAssetId: a.cashAssetId,
+      amount: { amount: a.amount, currency },
+    }));
 
   const base = {
     type: 'take_mortgage' as const,
@@ -195,6 +222,7 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
       amount: { amount: mp, currency },
       frequency: 'monthly' as Frequency,
     },
+    ...(allocations.length > 0 ? { allocations } : {}),
   };
 
   if (form.rental) {
@@ -213,7 +241,9 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
   return { ...base, rental: false };
 }
 
-export function buildTakePersonalLoanInput(form: PersonalLoanFormData): NewEventInput {
+export function buildTakePersonalLoanInput(
+  form: PersonalLoanFormData,
+): NewEventInput {
   const rate = form.interestRate / 100;
   const currency = form.currency;
   const endDate = addYears(form.startDate, form.termYears);
@@ -247,13 +277,28 @@ export function buildTakePersonalLoanInput(form: PersonalLoanFormData): NewEvent
   };
 }
 
-export function buildRepayLoanInput(form: RepayLoanFormData, date: string): NewEventInput {
+export function buildRepayLoanInput(
+  form: RepayLoanFormData,
+  date: string,
+): NewEventInput {
   const currency = form.currency;
   const totalMonths = monthsBetween(form.loanStartDate, form.loanEndDate);
-  const mp = monthlyPaymentFromMonths(form.originalPrincipal, form.interestRate, totalMonths);
+  const mp = monthlyPaymentFromMonths(
+    form.originalPrincipal,
+    form.interestRate,
+    totalMonths,
+  );
   const elapsed = monthsBetween(form.loanStartDate, date);
-  const currentBalance = remainingBalance(form.originalPrincipal, form.interestRate, mp, elapsed);
-  const newPrincipalAmount = Math.max(0, Math.round(currentBalance - form.repaymentAmount));
+  const currentBalance = remainingBalance(
+    form.originalPrincipal,
+    form.interestRate,
+    mp,
+    elapsed,
+  );
+  const newPrincipalAmount = Math.max(
+    0,
+    Math.round(currentBalance - form.repaymentAmount),
+  );
 
   let newEndDate: string;
   let newMp: number;
@@ -264,12 +309,25 @@ export function buildRepayLoanInput(form: RepayLoanFormData, date: string): NewE
   } else if (form.strategy === 'reduce_payment') {
     newEndDate = form.loanEndDate;
     const remainingMonths = monthsBetween(date, form.loanEndDate);
-    newMp = Math.round(monthlyPaymentFromMonths(newPrincipalAmount, form.interestRate, remainingMonths));
+    newMp = Math.round(
+      monthlyPaymentFromMonths(
+        newPrincipalAmount,
+        form.interestRate,
+        remainingMonths,
+      ),
+    );
   } else {
     newMp = Math.round(mp);
     const n = monthsToPayoff(newPrincipalAmount, form.interestRate, newMp);
     newEndDate = addMonths(date, n);
   }
+
+  const allocations: CashAllocation[] = form.allocations
+    .filter((a) => a.amount > 0)
+    .map((a) => ({
+      cashAssetId: a.cashAssetId,
+      amount: { amount: a.amount, currency },
+    }));
 
   return {
     type: 'repay_loan',
@@ -278,6 +336,7 @@ export function buildRepayLoanInput(form: RepayLoanFormData, date: string): NewE
     expenseId: form.expenseId,
     repaymentAmount: { amount: form.repaymentAmount, currency },
     strategy: form.strategy,
+    ...(allocations.length > 0 ? { allocations } : {}),
     newPrincipal: { amount: newPrincipalAmount, currency },
     newStartDate: date,
     newEndDate,
@@ -285,7 +344,10 @@ export function buildRepayLoanInput(form: RepayLoanFormData, date: string): NewE
   };
 }
 
-export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEventInput {
+export function buildBuyAssetInput(
+  form: BuyAssetFormData,
+  date: string,
+): NewEventInput {
   const currency = form.currency;
   const allocations: CashAllocation[] = form.allocations
     .filter((a) => a.amount > 0)
@@ -325,7 +387,9 @@ export function buildBuyAssetInput(form: BuyAssetFormData, date: string): NewEve
   return result;
 }
 
-export function incomeFormFromEvent(event: Extract<NewEventInput, { type: 'add_income' }>): { form: IncomeFormData; date: string } {
+export function incomeFormFromEvent(
+  event: Extract<NewEventInput, { type: 'add_income' }>,
+): { form: IncomeFormData; date: string } {
   return {
     form: {
       name: event.income.name,
@@ -338,7 +402,9 @@ export function incomeFormFromEvent(event: Extract<NewEventInput, { type: 'add_i
   };
 }
 
-export function expenseFormFromEvent(event: Extract<NewEventInput, { type: 'add_expense' }>): { form: ExpenseFormData; date: string } {
+export function expenseFormFromEvent(
+  event: Extract<NewEventInput, { type: 'add_expense' }>,
+): { form: ExpenseFormData; date: string } {
   return {
     form: {
       name: event.expense.name,
@@ -351,7 +417,9 @@ export function expenseFormFromEvent(event: Extract<NewEventInput, { type: 'add_
   };
 }
 
-export function assetFormFromEvent(event: Extract<NewEventInput, { type: 'add_asset' }>): { form: AssetFormData; date: string } {
+export function assetFormFromEvent(
+  event: Extract<NewEventInput, { type: 'add_asset' }>,
+): { form: AssetFormData; date: string } {
   return {
     form: {
       name: event.asset.name,
@@ -365,8 +433,13 @@ export function assetFormFromEvent(event: Extract<NewEventInput, { type: 'add_as
   };
 }
 
-export function mortgageFormFromEvent(event: Extract<NewEventInput, { type: 'take_mortgage' }>): { form: MortgageFormData } {
-  const termMonths = monthsBetween(event.mortgage.startDate, event.mortgage.endDate);
+export function mortgageFormFromEvent(
+  event: Extract<NewEventInput, { type: 'take_mortgage' }>,
+): { form: MortgageFormData } {
+  const termMonths = monthsBetween(
+    event.mortgage.startDate,
+    event.mortgage.endDate,
+  );
   return {
     form: {
       name: event.flat.name,
@@ -380,6 +453,10 @@ export function mortgageFormFromEvent(event: Extract<NewEventInput, { type: 'tak
       rental: event.rental,
       rentalIncomeName: event.rental ? event.income.name : '',
       rentalIncomeAmount: event.rental ? event.income.amount.amount : 0,
+      allocations: (event.allocations ?? []).map((a) => ({
+        cashAssetId: a.cashAssetId,
+        amount: a.amount.amount,
+      })),
       existingMortgageId: event.mortgage.id,
       existingFlatId: event.flat.id,
       existingExpenseId: event.expense.id,
@@ -388,7 +465,9 @@ export function mortgageFormFromEvent(event: Extract<NewEventInput, { type: 'tak
   };
 }
 
-export function personalLoanFormFromEvent(event: Extract<NewEventInput, { type: 'take_personal_loan' }>): { form: PersonalLoanFormData } {
+export function personalLoanFormFromEvent(
+  event: Extract<NewEventInput, { type: 'take_personal_loan' }>,
+): { form: PersonalLoanFormData } {
   const termMonths = monthsBetween(event.loan.startDate, event.loan.endDate);
   return {
     form: {
@@ -405,7 +484,9 @@ export function personalLoanFormFromEvent(event: Extract<NewEventInput, { type: 
   };
 }
 
-export function repayLoanFormFromEvent(event: Extract<NewEventInput, { type: 'repay_loan' }>): { form: RepayLoanFormData; date: string } {
+export function repayLoanFormFromEvent(
+  event: Extract<NewEventInput, { type: 'repay_loan' }>,
+): { form: RepayLoanFormData; date: string } {
   return {
     form: {
       liabilityId: event.liabilityId,
@@ -413,16 +494,23 @@ export function repayLoanFormFromEvent(event: Extract<NewEventInput, { type: 're
       repaymentAmount: event.repaymentAmount.amount,
       currency: event.repaymentAmount.currency,
       strategy: event.strategy,
-      originalPrincipal: event.newPrincipal.amount + event.repaymentAmount.amount,
+      originalPrincipal:
+        event.newPrincipal.amount + event.repaymentAmount.amount,
       interestRate: 0,
       loanStartDate: event.newStartDate,
       loanEndDate: event.newEndDate,
+      allocations: (event.allocations ?? []).map((a) => ({
+        cashAssetId: a.cashAssetId,
+        amount: a.amount.amount,
+      })),
     },
     date: event.date,
   };
 }
 
-export function buyAssetFormFromEvent(event: Extract<NewEventInput, { type: 'buy_asset' }>): { form: BuyAssetFormData; date: string } {
+export function buyAssetFormFromEvent(
+  event: Extract<NewEventInput, { type: 'buy_asset' }>,
+): { form: BuyAssetFormData; date: string } {
   return {
     form: {
       name: event.asset.name,
@@ -510,11 +598,19 @@ export function describeEvent(input: NewEventInput): {
       return {
         typeLabel,
         name: `Repay ${formatMoney(input.repaymentAmount.amount, input.repaymentAmount.currency)}`,
-        detail: input.strategy === 'reduce_payment' ? 'lower payment' : 'shorter term',
+        detail:
+          input.strategy === 'reduce_payment'
+            ? 'lower payment'
+            : 'shorter term',
         date: input.date,
       };
     case 'manual_correction':
-      return { typeLabel: 'Correction', name: '', detail: '', date: input.date };
+      return {
+        typeLabel: 'Correction',
+        name: '',
+        detail: '',
+        date: input.date,
+      };
   }
 }
 
@@ -555,6 +651,7 @@ export function emptyMortgageForm(): MortgageFormData {
     rental: false,
     rentalIncomeName: '',
     rentalIncomeAmount: 0,
+    allocations: [],
   };
 }
 
@@ -596,5 +693,6 @@ export function emptyRepayLoanForm(): RepayLoanFormData {
     interestRate: 0,
     loanStartDate: '',
     loanEndDate: '',
+    allocations: [],
   };
 }
