@@ -50,6 +50,17 @@ export function applyEvents(
         assets.push(cloneAsset(event.flat));
         expenses.push(cloneExpense(event.expense));
         if (event.rental) incomes.push(cloneIncome(event.income));
+        if (event.allocations) {
+          for (const alloc of event.allocations) {
+            const cash = assets.find((a) => a.id === alloc.cashAssetId);
+            if (cash) {
+              cash.value = {
+                ...cash.value,
+                amount: Math.max(0, cash.value.amount - alloc.amount.amount),
+              };
+            }
+          }
+        }
         break;
       }
       case 'take_personal_loan': {

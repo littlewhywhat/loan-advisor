@@ -373,9 +373,11 @@ function AssetFields({
 function MortgageFields({
   form,
   onChange,
+  cashAssets,
 }: {
   form: MortgageFormData;
   onChange: (f: MortgageFormData) => void;
+  cashAssets: Cash[];
 }) {
   const mp = useMemo(
     () =>
@@ -559,6 +561,17 @@ function MortgageFields({
           )}
         </Flex>
       </Card>
+      {cashAssets.length > 0 && form.downPayment > 0 && (
+        <Card variant="surface">
+          <CashAllocationsField
+            allocations={form.allocations}
+            cashAssets={cashAssets}
+            currency={form.currency}
+            totalValue={form.downPayment}
+            onChange={(allocations) => onChange({ ...form, allocations })}
+          />
+        </Card>
+      )}
     </>
   );
 }
@@ -1378,7 +1391,11 @@ export default function StrategyPanel({
               />
             )}
             {eventType === 'take_mortgage' && (
-              <MortgageFields form={mortgageForm} onChange={setMortgageForm} />
+              <MortgageFields
+                form={mortgageForm}
+                onChange={setMortgageForm}
+                cashAssets={cashAssets}
+              />
             )}
             {eventType === 'take_personal_loan' && (
               <PersonalLoanFields form={loanForm} onChange={setLoanForm} />

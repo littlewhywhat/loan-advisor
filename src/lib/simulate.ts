@@ -175,6 +175,20 @@ function injectScheduledEvents(
   }
 
   for (const event of events) {
+    if (
+      event.type === 'take_mortgage' &&
+      event.mortgage.downPayment.amount > 0
+    ) {
+      const allocatedTotal = (event.allocations ?? []).reduce(
+        (sum, a) => sum + a.amount.amount,
+        0,
+      );
+      const fromCashReserve =
+        event.mortgage.downPayment.amount - allocatedTotal;
+      if (fromCashReserve > 0) {
+        state.cashReserve = Math.max(0, state.cashReserve - fromCashReserve);
+      }
+    }
     if (event.type !== 'repay_loan') continue;
     const allocatedTotal = (event.allocations ?? []).reduce(
       (sum, a) => sum + a.amount.amount,

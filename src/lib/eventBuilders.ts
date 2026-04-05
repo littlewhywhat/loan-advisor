@@ -51,6 +51,7 @@ export type MortgageFormData = {
   rental: boolean;
   rentalIncomeName: string;
   rentalIncomeAmount: number;
+  allocations: BuyAssetFormAllocation[];
   existingMortgageId?: string;
   existingFlatId?: string;
   existingExpenseId?: string;
@@ -188,6 +189,13 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
   const flatValue = form.loanValue + form.downPayment;
   const mp = Math.round(monthlyPayment(form.loanValue, rate, form.termYears));
 
+  const allocations: CashAllocation[] = form.allocations
+    .filter((a) => a.amount > 0)
+    .map((a) => ({
+      cashAssetId: a.cashAssetId,
+      amount: { amount: a.amount, currency },
+    }));
+
   const base = {
     type: 'take_mortgage' as const,
     date: form.startDate,
@@ -214,6 +222,7 @@ export function buildTakeMortgageInput(form: MortgageFormData): NewEventInput {
       amount: { amount: mp, currency },
       frequency: 'monthly' as Frequency,
     },
+    ...(allocations.length > 0 ? { allocations } : {}),
   };
 
   if (form.rental) {
@@ -444,6 +453,10 @@ export function mortgageFormFromEvent(
       rental: event.rental,
       rentalIncomeName: event.rental ? event.income.name : '',
       rentalIncomeAmount: event.rental ? event.income.amount.amount : 0,
+      allocations: (event.allocations ?? []).map((a) => ({
+        cashAssetId: a.cashAssetId,
+        amount: a.amount.amount,
+      })),
       existingMortgageId: event.mortgage.id,
       existingFlatId: event.flat.id,
       existingExpenseId: event.expense.id,
@@ -638,6 +651,7 @@ export function emptyMortgageForm(): MortgageFormData {
     rental: false,
     rentalIncomeName: '',
     rentalIncomeAmount: 0,
+    allocations: [],
   };
 }
 

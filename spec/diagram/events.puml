@@ -14,6 +14,7 @@ entity Event {
 
 entity TakeMortgage {
   * rental : boolean
+  allocations : CashAllocation[]
 }
 
 entity TakePersonalLoan {
@@ -64,6 +65,7 @@ TakeMortgage "1" *-- "1" Mortgage
 TakeMortgage "1" *-- "1" Flat
 TakeMortgage "1" *-- "1" Expense
 TakeMortgage "0..1" *-- "1" Income : if rental
+TakeMortgage "1" *-- "0..*" CashAllocation
 
 TakePersonalLoan "1" *-- "1" Loan
 TakePersonalLoan "1" *-- "1" Cash

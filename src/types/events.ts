@@ -62,6 +62,7 @@ type TakeMortgageBase = EventBase & {
   mortgage: Mortgage;
   flat: Flat;
   expense: Expense;
+  allocations?: CashAllocation[];
 };
 
 export type TakeMortgageEvent =
