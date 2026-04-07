@@ -442,7 +442,11 @@ describe('deriveState', () => {
     });
 
     it('reduces cash from multiple sources', () => {
-      const events: FinanceEvent[] = [personalLoan, personalLoan2, buyFlatWithTwoLoans];
+      const events: FinanceEvent[] = [
+        personalLoan,
+        personalLoan2,
+        buyFlatWithTwoLoans,
+      ];
       const state = deriveState(events);
 
       const flat = state.assets.find((a) => a.id === 'flat-4');
@@ -466,7 +470,11 @@ describe('deriveState', () => {
     });
 
     it('returns identical results on consecutive calls', () => {
-      const events: FinanceEvent[] = [personalLoan, personalLoan2, buyFlatWithTwoLoans];
+      const events: FinanceEvent[] = [
+        personalLoan,
+        personalLoan2,
+        buyFlatWithTwoLoans,
+      ];
       const first = deriveState(events);
       const second = deriveState(events);
 
