@@ -171,9 +171,15 @@ describe('runSimulation', () => {
 
     it('cash assets stay constant with 0 growth', () => {
       const first = runSimulation(allEvents, config).baseline[0];
-      expect(first.assets.find((a) => a.id === 'cash-loan')!.value).toBe(1_500_000);
-      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(2_500_000);
-      expect(first.assets.find((a) => a.id === 'cash-savings')!.value).toBe(400_000);
+      expect(first.assets.find((a) => a.id === 'cash-loan')!.value).toBe(
+        1_500_000,
+      );
+      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(
+        2_500_000,
+      );
+      expect(first.assets.find((a) => a.id === 'cash-savings')!.value).toBe(
+        400_000,
+      );
     });
 
     it('accumulates cash reserve from positive cash flow', () => {
@@ -184,15 +190,21 @@ describe('runSimulation', () => {
 
     it('loan balance decreases over time', () => {
       const result = runSimulation(allEvents, config);
-      const first = result.baseline[0].liabilities.find((l) => l.id === 'loan-1')!;
-      const last = result.baseline[11].liabilities.find((l) => l.id === 'loan-1')!;
+      const first = result.baseline[0].liabilities.find(
+        (l) => l.id === 'loan-1',
+      )!;
+      const last = result.baseline[11].liabilities.find(
+        (l) => l.id === 'loan-1',
+      )!;
       expect(first.balance).toBeGreaterThan(last.balance);
     });
   });
 
   describe('buy flat with loan cash (immediate)', () => {
     const strategy = [
-      buyFlatStrategy(todayStr, [{ cashAssetId: 'cash-loan', amount: 1_500_000 }]),
+      buyFlatStrategy(todayStr, [
+        { cashAssetId: 'cash-loan', amount: 1_500_000 },
+      ]),
     ];
 
     it('deducts loan cash to 0', () => {
@@ -211,19 +223,29 @@ describe('runSimulation', () => {
 
     it('other cash assets unaffected', () => {
       const first = runSimulation(allEvents, config, strategy).strategy![0];
-      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(2_500_000);
-      expect(first.assets.find((a) => a.id === 'cash-savings')!.value).toBe(400_000);
+      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(
+        2_500_000,
+      );
+      expect(first.assets.find((a) => a.id === 'cash-savings')!.value).toBe(
+        400_000,
+      );
     });
 
     it('baseline is unaffected', () => {
       const result = runSimulation(allEvents, config, strategy);
-      expect(result.baseline[0].assets.find((a) => a.id === 'cash-loan')!.value).toBe(1_500_000);
-      expect(result.baseline[0].assets.find((a) => a.id === 'flat-new')).toBeUndefined();
+      expect(
+        result.baseline[0].assets.find((a) => a.id === 'cash-loan')!.value,
+      ).toBe(1_500_000);
+      expect(
+        result.baseline[0].assets.find((a) => a.id === 'flat-new'),
+      ).toBeUndefined();
     });
 
     it('loan still amortizes', () => {
       const result = runSimulation(allEvents, config, strategy);
-      const loan = result.strategy![0].liabilities.find((l) => l.id === 'loan-1');
+      const loan = result.strategy![0].liabilities.find(
+        (l) => l.id === 'loan-1',
+      );
       expect(loan).toBeDefined();
       expect(loan!.balance).toBeGreaterThan(0);
     });
@@ -231,17 +253,23 @@ describe('runSimulation', () => {
 
   describe('buy flat with investment cash (immediate)', () => {
     const strategy = [
-      buyFlatStrategy(todayStr, [{ cashAssetId: 'cash-investment', amount: 2_000_000 }]),
+      buyFlatStrategy(todayStr, [
+        { cashAssetId: 'cash-investment', amount: 2_000_000 },
+      ]),
     ];
 
     it('deducts investment to 500k', () => {
       const first = runSimulation(allEvents, config, strategy).strategy![0];
-      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(500_000);
+      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(
+        500_000,
+      );
     });
 
     it('loan cash unaffected', () => {
       const first = runSimulation(allEvents, config, strategy).strategy![0];
-      expect(first.assets.find((a) => a.id === 'cash-loan')!.value).toBe(1_500_000);
+      expect(first.assets.find((a) => a.id === 'cash-loan')!.value).toBe(
+        1_500_000,
+      );
     });
   });
 
@@ -256,31 +284,41 @@ describe('runSimulation', () => {
     it('deducts from both sources', () => {
       const first = runSimulation(allEvents, config, strategy).strategy![0];
       expect(first.assets.find((a) => a.id === 'cash-loan')!.value).toBe(0);
-      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(500_000);
+      expect(first.assets.find((a) => a.id === 'cash-investment')!.value).toBe(
+        500_000,
+      );
     });
 
     it('flat value equals total allocation', () => {
-      const flat = runSimulation(allEvents, config, strategy).strategy![0].assets.find(
-        (a) => a.id === 'flat-new',
-      );
+      const flat = runSimulation(
+        allEvents,
+        config,
+        strategy,
+      ).strategy![0].assets.find((a) => a.id === 'flat-new');
       expect(flat!.value).toBe(3_500_000);
     });
 
     it('savings unaffected', () => {
       const first = runSimulation(allEvents, config, strategy).strategy![0];
-      expect(first.assets.find((a) => a.id === 'cash-savings')!.value).toBe(400_000);
+      expect(first.assets.find((a) => a.id === 'cash-savings')!.value).toBe(
+        400_000,
+      );
     });
   });
 
   describe('buy flat scheduled (future)', () => {
     const scheduledDate = futureDate(6);
     const strategy = [
-      buyFlatStrategy(scheduledDate, [{ cashAssetId: 'cash-loan', amount: 1_500_000 }]),
+      buyFlatStrategy(scheduledDate, [
+        { cashAssetId: 'cash-loan', amount: 1_500_000 },
+      ]),
     ];
 
     it('cash is full before scheduled month', () => {
       const first = runSimulation(allEvents, config, strategy).strategy![0];
-      expect(first.assets.find((a) => a.id === 'cash-loan')!.value).toBe(1_500_000);
+      expect(first.assets.find((a) => a.id === 'cash-loan')!.value).toBe(
+        1_500_000,
+      );
     });
 
     it('flat does not exist before scheduled month', () => {
@@ -321,7 +359,10 @@ describe('runSimulation', () => {
           growthRate: 0,
         },
         allocations: [
-          { cashAssetId: 'cash-loan', amount: { amount: 1_500_000, currency: 'CZK' } },
+          {
+            cashAssetId: 'cash-loan',
+            amount: { amount: 1_500_000, currency: 'CZK' },
+          },
         ],
         forLiving: true,
         removeExpenseId: 'exp-rent',
@@ -335,7 +376,9 @@ describe('runSimulation', () => {
 
     it('reduces total expenses by rent amount', () => {
       const result = runSimulation(allEvents, config, strategy);
-      expect(result.strategy![0].totalExpenses).toBe(result.baseline[0].totalExpenses - 15_000);
+      expect(result.strategy![0].totalExpenses).toBe(
+        result.baseline[0].totalExpenses - 15_000,
+      );
     });
 
     it('rent remains in baseline', () => {
@@ -385,12 +428,18 @@ describe('runSimulation', () => {
         growthRate: 0.03,
       },
       allocations: [
-        { cashAssetId: 'strat-cash', amount: { amount: 2_600_000, currency: 'CZK' } },
+        {
+          cashAssetId: 'strat-cash',
+          amount: { amount: 2_600_000, currency: 'CZK' },
+        },
       ],
     };
 
     it('deducts strategy loan cash when buying flat', () => {
-      const result = runSimulation(allEvents, config, [loanStrategy, buyFlatFromStratCash]);
+      const result = runSimulation(allEvents, config, [
+        loanStrategy,
+        buyFlatFromStratCash,
+      ]);
       const first = result.strategy![0];
 
       const cash = first.assets.find((a) => a.id === 'strat-cash');
@@ -399,34 +448,59 @@ describe('runSimulation', () => {
     });
 
     it('flat is added with correct value', () => {
-      const result = runSimulation(allEvents, config, [loanStrategy, buyFlatFromStratCash]);
-      const flat = result.strategy![0].assets.find((a) => a.id === 'strat-flat');
+      const result = runSimulation(allEvents, config, [
+        loanStrategy,
+        buyFlatFromStratCash,
+      ]);
+      const flat = result.strategy![0].assets.find(
+        (a) => a.id === 'strat-flat',
+      );
       expect(flat).toBeDefined();
       expect(flat!.value).toBeGreaterThan(0);
     });
 
     it('loan liability exists', () => {
-      const result = runSimulation(allEvents, config, [loanStrategy, buyFlatFromStratCash]);
-      const loan = result.strategy![0].liabilities.find((l) => l.id === 'strat-loan');
+      const result = runSimulation(allEvents, config, [
+        loanStrategy,
+        buyFlatFromStratCash,
+      ]);
+      const loan = result.strategy![0].liabilities.find(
+        (l) => l.id === 'strat-loan',
+      );
       expect(loan).toBeDefined();
       expect(loan!.balance).toBeGreaterThan(0);
     });
 
     it('loan expense is active', () => {
-      const result = runSimulation(allEvents, config, [loanStrategy, buyFlatFromStratCash]);
-      const exp = result.strategy![0].expenses.find((e) => e.id === 'strat-exp');
+      const result = runSimulation(allEvents, config, [
+        loanStrategy,
+        buyFlatFromStratCash,
+      ]);
+      const exp = result.strategy![0].expenses.find(
+        (e) => e.id === 'strat-exp',
+      );
       expect(exp).toBeDefined();
       expect(exp!.active).toBe(true);
     });
 
     it('baseline is unaffected', () => {
-      const result = runSimulation(allEvents, config, [loanStrategy, buyFlatFromStratCash]);
-      expect(result.baseline[0].assets.find((a) => a.id === 'strat-cash')).toBeUndefined();
-      expect(result.baseline[0].assets.find((a) => a.id === 'strat-flat')).toBeUndefined();
+      const result = runSimulation(allEvents, config, [
+        loanStrategy,
+        buyFlatFromStratCash,
+      ]);
+      expect(
+        result.baseline[0].assets.find((a) => a.id === 'strat-cash'),
+      ).toBeUndefined();
+      expect(
+        result.baseline[0].assets.find((a) => a.id === 'strat-flat'),
+      ).toBeUndefined();
     });
 
     it('works when buy_asset is scheduled later', () => {
-      const laterBuy: NewEventInput = { ...buyFlatFromStratCash, date: futureDate(3) };
+      const laterBuy: NewEventInput = {
+        ...buyFlatFromStratCash,
+        date: futureDate(3),
+      };
       const result = runSimulation(allEvents, config, [loanStrategy, laterBuy]);
 
       const first = result.strategy![0];
@@ -448,9 +522,15 @@ describe('runSimulation', () => {
       const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
       const loanTomorrow: NewEventInput = { ...loanStrategy, date: todayStr };
-      const buyYesterday: NewEventInput = { ...buyFlatFromStratCash, date: yesterdayStr };
+      const buyYesterday: NewEventInput = {
+        ...buyFlatFromStratCash,
+        date: yesterdayStr,
+      };
 
-      const result = runSimulation(allEvents, config, [loanTomorrow, buyYesterday]);
+      const result = runSimulation(allEvents, config, [
+        loanTomorrow,
+        buyYesterday,
+      ]);
       const first = result.strategy![0];
 
       const cash = first.assets.find((a) => a.id === 'strat-cash');

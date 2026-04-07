@@ -10,9 +10,9 @@
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check --write .",
+    "check:ci": "biome ci .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "ci": "pnpm run check && pnpm run typecheck && pnpm run test && pnpm run build"
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/themes": "^3.3.0",
