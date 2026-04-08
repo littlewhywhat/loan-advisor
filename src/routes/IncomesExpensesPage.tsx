@@ -1,5 +1,4 @@
 import {
-  AlertDialog,
   Badge,
   Button,
   Card,
@@ -13,13 +12,15 @@ import {
 } from '@radix-ui/themes';
 import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import CurrencySelect from '@/components/CurrencySelect';
 import { useEvents } from '@/context/EventProvider';
+import { useEntityActions } from '@/hooks/useEntityActions';
 import {
   findOwnerEvent,
   isEventEditable,
   isStandaloneExpense,
   isStandaloneIncome,
-  ownedEntityNames,
   todayStr,
 } from '@/lib/eventUtils';
 import { fmtMoney, toMonthly } from '@/lib/format';
@@ -78,23 +79,54 @@ function expenseToForm(e: Expense): ExpenseForm {
   };
 }
 
+function FrequencySelect({
+  value,
+  onValueChange,
+}: {
+  value: Frequency;
+  onValueChange: (v: Frequency) => void;
+}) {
+  return (
+    <Select.Root
+      value={value}
+      onValueChange={(v) => onValueChange(v as Frequency)}
+    >
+      <Select.Trigger style={{ width: '100%' }} />
+      <Select.Content>
+        {FREQUENCIES.map((freq) => (
+          <Select.Item key={freq} value={freq}>
+            {FREQ_LABELS[freq]}
+          </Select.Item>
+        ))}
+      </Select.Content>
+    </Select.Root>
+  );
+}
+
+function formatFreqSuffix(frequency: Frequency): string {
+  if (frequency === 'monthly') return 'mo';
+  if (frequency === 'quarterly') return 'qtr';
+  return 'yr';
+}
+
 function IncomeSection() {
-  const {
-    events,
-    derived,
-    archivedDerived,
-    addEvent,
-    updateEvent,
-    archiveEvent,
-    restoreEvent,
-    deleteEvent,
-  } = useEvents();
+  const { events, derived, archivedDerived, addEvent, updateEvent } =
+    useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<IncomeForm>(emptyIncomeForm);
-  const [archiveTarget, setArchiveTarget] = useState<Income | null>(null);
-  const [restoreTarget, setRestoreTarget] = useState<Income | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Income | null>(null);
+  const {
+    archiveTarget,
+    setArchiveTarget,
+    restoreTarget,
+    setRestoreTarget,
+    deleteTarget,
+    setDeleteTarget,
+    handleArchive,
+    handleRestore,
+    handleDelete,
+    restoreDescription,
+  } = useEntityActions<Income>();
 
   const openAdd = () => {
     setEditingId(null);
@@ -139,31 +171,6 @@ function IncomeSection() {
     setDialogOpen(false);
   };
 
-  const handleArchive = () => {
-    if (!archiveTarget) return;
-    const owner = findOwnerEvent(events, archiveTarget.id);
-    if (owner) archiveEvent(owner.id);
-    setArchiveTarget(null);
-  };
-
-  const handleRestore = () => {
-    if (!restoreTarget) return;
-    const owner = findOwnerEvent(events, restoreTarget.id);
-    if (owner) restoreEvent(owner.id);
-    setRestoreTarget(null);
-  };
-
-  const restoreOwner = restoreTarget
-    ? findOwnerEvent(events, restoreTarget.id)
-    : undefined;
-
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-    const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) deleteEvent(owner.id);
-    setDeleteTarget(null);
-  };
-
   return (
     <>
       <Flex justify="between" align="center">
@@ -203,11 +210,7 @@ function IncomeSection() {
                 <Flex gap="3" align="center">
                   <Text size="2" weight="bold">
                     {fmtMoney(income.amount)}/
-                    {income.frequency === 'monthly'
-                      ? 'mo'
-                      : income.frequency === 'quarterly'
-                        ? 'qtr'
-                        : 'yr'}
+                    {formatFreqSuffix(income.frequency)}
                   </Text>
                   {income.frequency !== 'monthly' && (
                     <Text size="1" color="gray">
@@ -262,11 +265,7 @@ function IncomeSection() {
                   </Text>
                   <Text size="2" color="gray">
                     {fmtMoney(income.amount)}/
-                    {income.frequency === 'monthly'
-                      ? 'mo'
-                      : income.frequency === 'quarterly'
-                        ? 'qtr'
-                        : 'yr'}
+                    {formatFreqSuffix(income.frequency)}
                   </Text>
                 </Flex>
                 <Flex gap="2">
@@ -333,19 +332,10 @@ function IncomeSection() {
                 <Text size="2" weight="medium" mb="1" asChild>
                   <span>Currency</span>
                 </Text>
-                <Select.Root
+                <CurrencySelect
                   value={form.currency}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, currency: v as Currency }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="CZK">CZK</Select.Item>
-                    <Select.Item value="EUR">EUR</Select.Item>
-                    <Select.Item value="USD">USD</Select.Item>
-                  </Select.Content>
-                </Select.Root>
+                  onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                />
               </div>
             </Flex>
 
@@ -353,21 +343,10 @@ function IncomeSection() {
               <Text size="2" weight="medium" mb="1" asChild>
                 <span>Frequency</span>
               </Text>
-              <Select.Root
+              <FrequencySelect
                 value={form.frequency}
-                onValueChange={(v) =>
-                  setForm((f) => ({ ...f, frequency: v as Frequency }))
-                }
-              >
-                <Select.Trigger style={{ width: '100%' }} />
-                <Select.Content>
-                  {FREQUENCIES.map((freq) => (
-                    <Select.Item key={freq} value={freq}>
-                      {FREQ_LABELS[freq]}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
+                onValueChange={(v) => setForm((f) => ({ ...f, frequency: v }))}
+              />
             </div>
           </Flex>
 
@@ -382,101 +361,70 @@ function IncomeSection() {
         </Dialog.Content>
       </Dialog.Root>
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!archiveTarget}
         onOpenChange={(open) => !open && setArchiveTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Archive Income</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Archive Income"
+        description={
+          <>
             Are you sure you want to archive{' '}
             <strong>{archiveTarget?.name}</strong>?
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleArchive}>
-                Archive
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Archive"
+        actionColor="red"
+        onConfirm={handleArchive}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!restoreTarget}
         onOpenChange={(open) => !open && setRestoreTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Restore Event</AlertDialog.Title>
-          <AlertDialog.Description>
-            This will restore:{' '}
-            <strong>
-              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
-            </strong>
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button onClick={handleRestore}>Restore</Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+        title="Restore Event"
+        description={
+          <>
+            This will restore: <strong>{restoreDescription}</strong>
+          </>
+        }
+        actionLabel="Restore"
+        onConfirm={handleRestore}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Delete Income</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Delete Income"
+        description={
+          <>
             Permanently delete <strong>{deleteTarget?.name}</strong>? This
             cannot be undone.
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleDelete}>
-                Delete
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Delete"
+        actionColor="red"
+        onConfirm={handleDelete}
+      />
     </>
   );
 }
 
 function ExpenseSection() {
-  const {
-    events,
-    derived,
-    archivedDerived,
-    addEvent,
-    updateEvent,
-    archiveEvent,
-    restoreEvent,
-    deleteEvent,
-  } = useEvents();
+  const { events, derived, archivedDerived, addEvent, updateEvent } =
+    useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ExpenseForm>(emptyExpenseForm);
-  const [archiveTarget, setArchiveTarget] = useState<Expense | null>(null);
-  const [restoreTarget, setRestoreTarget] = useState<Expense | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const {
+    archiveTarget,
+    setArchiveTarget,
+    restoreTarget,
+    setRestoreTarget,
+    deleteTarget,
+    setDeleteTarget,
+    handleArchive,
+    handleRestore,
+    handleDelete,
+    restoreDescription,
+  } = useEntityActions<Expense>();
 
   const openAdd = () => {
     setEditingId(null);
@@ -521,31 +469,6 @@ function ExpenseSection() {
     setDialogOpen(false);
   };
 
-  const handleArchive = () => {
-    if (!archiveTarget) return;
-    const owner = findOwnerEvent(events, archiveTarget.id);
-    if (owner) archiveEvent(owner.id);
-    setArchiveTarget(null);
-  };
-
-  const handleRestore = () => {
-    if (!restoreTarget) return;
-    const owner = findOwnerEvent(events, restoreTarget.id);
-    if (owner) restoreEvent(owner.id);
-    setRestoreTarget(null);
-  };
-
-  const restoreOwner = restoreTarget
-    ? findOwnerEvent(events, restoreTarget.id)
-    : undefined;
-
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-    const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) deleteEvent(owner.id);
-    setDeleteTarget(null);
-  };
-
   return (
     <>
       <Flex justify="between" align="center">
@@ -585,11 +508,7 @@ function ExpenseSection() {
                 <Flex gap="3" align="center">
                   <Text size="2" weight="bold">
                     {fmtMoney(expense.amount)}/
-                    {expense.frequency === 'monthly'
-                      ? 'mo'
-                      : expense.frequency === 'quarterly'
-                        ? 'qtr'
-                        : 'yr'}
+                    {formatFreqSuffix(expense.frequency)}
                   </Text>
                   {expense.frequency !== 'monthly' && (
                     <Text size="1" color="gray">
@@ -644,11 +563,7 @@ function ExpenseSection() {
                   </Text>
                   <Text size="2" color="gray">
                     {fmtMoney(expense.amount)}/
-                    {expense.frequency === 'monthly'
-                      ? 'mo'
-                      : expense.frequency === 'quarterly'
-                        ? 'qtr'
-                        : 'yr'}
+                    {formatFreqSuffix(expense.frequency)}
                   </Text>
                 </Flex>
                 <Flex gap="2">
@@ -715,19 +630,10 @@ function ExpenseSection() {
                 <Text size="2" weight="medium" mb="1" asChild>
                   <span>Currency</span>
                 </Text>
-                <Select.Root
+                <CurrencySelect
                   value={form.currency}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, currency: v as Currency }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="CZK">CZK</Select.Item>
-                    <Select.Item value="EUR">EUR</Select.Item>
-                    <Select.Item value="USD">USD</Select.Item>
-                  </Select.Content>
-                </Select.Root>
+                  onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                />
               </div>
             </Flex>
 
@@ -735,21 +641,10 @@ function ExpenseSection() {
               <Text size="2" weight="medium" mb="1" asChild>
                 <span>Frequency</span>
               </Text>
-              <Select.Root
+              <FrequencySelect
                 value={form.frequency}
-                onValueChange={(v) =>
-                  setForm((f) => ({ ...f, frequency: v as Frequency }))
-                }
-              >
-                <Select.Trigger style={{ width: '100%' }} />
-                <Select.Content>
-                  {FREQUENCIES.map((freq) => (
-                    <Select.Item key={freq} value={freq}>
-                      {FREQ_LABELS[freq]}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
+                onValueChange={(v) => setForm((f) => ({ ...f, frequency: v }))}
+              />
             </div>
           </Flex>
 
@@ -764,80 +659,48 @@ function ExpenseSection() {
         </Dialog.Content>
       </Dialog.Root>
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!archiveTarget}
         onOpenChange={(open) => !open && setArchiveTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Archive Expense</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Archive Expense"
+        description={
+          <>
             Are you sure you want to archive{' '}
             <strong>{archiveTarget?.name}</strong>?
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleArchive}>
-                Archive
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Archive"
+        actionColor="red"
+        onConfirm={handleArchive}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!restoreTarget}
         onOpenChange={(open) => !open && setRestoreTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Restore Event</AlertDialog.Title>
-          <AlertDialog.Description>
-            This will restore:{' '}
-            <strong>
-              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
-            </strong>
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button onClick={handleRestore}>Restore</Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+        title="Restore Event"
+        description={
+          <>
+            This will restore: <strong>{restoreDescription}</strong>
+          </>
+        }
+        actionLabel="Restore"
+        onConfirm={handleRestore}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Delete Expense</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Delete Expense"
+        description={
+          <>
             Permanently delete <strong>{deleteTarget?.name}</strong>? This
             cannot be undone.
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleDelete}>
-                Delete
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Delete"
+        actionColor="red"
+        onConfirm={handleDelete}
+      />
     </>
   );
 }
