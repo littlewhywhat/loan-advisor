@@ -9,7 +9,7 @@ entity Strategy {
   * id : uuid <<PK>>
   * name : string
   --
-  * events : Event[]
+  * events : OrderedMap<uuid, Event>
 }
 
 note right of StrategyLibrary
@@ -25,6 +25,9 @@ note right of Strategy
   Applied on user confirmation,
   at which point events become
   active in the EventStore.
+  Events stored as ordered map
+  for insertion-order processing
+  and O(1) lookup by id.
 end note
 
 StrategyLibrary "1" o-- "0..*" Strategy : contains
