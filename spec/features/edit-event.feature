@@ -13,3 +13,12 @@ Feature: Edit event entities
     Given an event with status ACTIVE exists
     And the event was created more than 12 hours ago
     Then the edit action is not available
+
+  Rule: Calendar view allows editing any event regardless of age
+
+  Scenario: Edit an old event from the calendar
+    Given an event with status ACTIVE exists
+    And the event was created more than 12 hours ago
+    When the user clicks the event in the calendar view
+    Then the edit dialog opens pre-filled with the event data
+    And the user can modify and save changes

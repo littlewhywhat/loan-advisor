@@ -12,6 +12,13 @@ entity Event {
   * status : EventStatus
 }
 
+note right of Event
+  Stored as an insertion-ordered map
+  keyed by id. Preserves creation order
+  for deterministic processing while
+  allowing O(1) lookup for editing.
+end note
+
 entity TakeMortgage {
   * rental : boolean
   allocations : CashAllocation[]
