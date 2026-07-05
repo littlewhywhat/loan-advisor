@@ -1,5 +1,4 @@
 import {
-  AlertDialog,
   Badge,
   Button,
   Card,
@@ -12,12 +11,14 @@ import {
 } from '@radix-ui/themes';
 import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import CurrencySelect from '@/components/CurrencySelect';
 import { useEvents } from '@/context/EventProvider';
+import { useEntityActions } from '@/hooks/useEntityActions';
 import {
   findOwnerEvent,
   isEventEditable,
   isStandaloneAsset,
-  ownedEntityNames,
   todayStr,
 } from '@/lib/eventUtils';
 import { fmtMoney, formatPct } from '@/lib/format';
@@ -56,22 +57,23 @@ function assetToForm(a: Asset): AssetForm {
 }
 
 export default function AssetsPage() {
-  const {
-    events,
-    derived,
-    archivedDerived,
-    addEvent,
-    updateEvent,
-    archiveEvent,
-    restoreEvent,
-    deleteEvent,
-  } = useEvents();
+  const { events, derived, archivedDerived, addEvent, updateEvent } =
+    useEvents();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<AssetForm>(emptyAssetForm);
-  const [archiveTarget, setArchiveTarget] = useState<Asset | null>(null);
-  const [restoreTarget, setRestoreTarget] = useState<Asset | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
+  const {
+    archiveTarget,
+    setArchiveTarget,
+    restoreTarget,
+    setRestoreTarget,
+    deleteTarget,
+    setDeleteTarget,
+    handleArchive,
+    handleRestore,
+    handleDelete,
+    restoreDescription,
+  } = useEntityActions<Asset>();
 
   const openAdd = () => {
     setEditingId(null);
@@ -115,31 +117,6 @@ export default function AssetsPage() {
       });
     }
     setDialogOpen(false);
-  };
-
-  const handleArchive = () => {
-    if (!archiveTarget) return;
-    const owner = findOwnerEvent(events, archiveTarget.id);
-    if (owner) archiveEvent(owner.id);
-    setArchiveTarget(null);
-  };
-
-  const handleRestore = () => {
-    if (!restoreTarget) return;
-    const owner = findOwnerEvent(events, restoreTarget.id);
-    if (owner) restoreEvent(owner.id);
-    setRestoreTarget(null);
-  };
-
-  const restoreOwner = restoreTarget
-    ? findOwnerEvent(events, restoreTarget.id)
-    : undefined;
-
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-    const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) deleteEvent(owner.id);
-    setDeleteTarget(null);
   };
 
   return (
@@ -378,19 +355,10 @@ export default function AssetsPage() {
                 <Text size="2" weight="medium" mb="1" asChild>
                   <span>Currency</span>
                 </Text>
-                <Select.Root
+                <CurrencySelect
                   value={form.currency}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, currency: v as Currency }))
-                  }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="CZK">CZK</Select.Item>
-                    <Select.Item value="EUR">EUR</Select.Item>
-                    <Select.Item value="USD">USD</Select.Item>
-                  </Select.Content>
-                </Select.Root>
+                  onValueChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                />
               </div>
             </Flex>
 
@@ -424,80 +392,48 @@ export default function AssetsPage() {
         </Dialog.Content>
       </Dialog.Root>
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!archiveTarget}
         onOpenChange={(open) => !open && setArchiveTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Archive Asset</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Archive Asset"
+        description={
+          <>
             Are you sure you want to archive{' '}
             <strong>{archiveTarget?.name}</strong>?
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleArchive}>
-                Archive
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Archive"
+        actionColor="red"
+        onConfirm={handleArchive}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!restoreTarget}
         onOpenChange={(open) => !open && setRestoreTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Restore Event</AlertDialog.Title>
-          <AlertDialog.Description>
-            This will restore:{' '}
-            <strong>
-              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
-            </strong>
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button onClick={handleRestore}>Restore</Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+        title="Restore Event"
+        description={
+          <>
+            This will restore: <strong>{restoreDescription}</strong>
+          </>
+        }
+        actionLabel="Restore"
+        onConfirm={handleRestore}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Delete Asset</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Delete Asset"
+        description={
+          <>
             Permanently delete <strong>{deleteTarget?.name}</strong>? This
             cannot be undone.
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleDelete}>
-                Delete
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Delete"
+        actionColor="red"
+        onConfirm={handleDelete}
+      />
     </Flex>
   );
 }

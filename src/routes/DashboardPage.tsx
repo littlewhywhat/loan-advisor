@@ -1,30 +1,8 @@
 import { Badge, Card, Flex, Heading, Separator, Text } from '@radix-ui/themes';
 import { useMemo } from 'react';
+import Row from '@/components/Row';
 import { useEvents } from '@/context/EventProvider';
 import { fmtMoney, toMonthly } from '@/lib/format';
-
-function Row({
-  label,
-  value,
-  color,
-  indent,
-}: {
-  label: string;
-  value: string;
-  color?: 'green' | 'red' | 'gray';
-  indent?: boolean;
-}) {
-  return (
-    <Flex justify="between" align="center" pl={indent ? '4' : '0'}>
-      <Text size="2" color={indent ? 'gray' : undefined}>
-        {label}
-      </Text>
-      <Text size="2" weight="bold" color={color}>
-        {value}
-      </Text>
-    </Flex>
-  );
-}
 
 function MetricCard({
   label,

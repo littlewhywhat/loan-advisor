@@ -11,6 +11,7 @@ import {
   TextField,
 } from '@radix-ui/themes';
 import { type KeyboardEvent, useMemo, useState } from 'react';
+import Row from '@/components/Row';
 import { useCalculations } from '@/hooks/useCalculations';
 import { computeExpenseLoan } from '@/lib/expenseCalc';
 
@@ -35,33 +36,6 @@ function formatDuration(months: number): string {
   if (years === 0) return `${rem} months`;
   if (rem === 0) return `${years} years`;
   return `${years}y ${rem}m`;
-}
-
-function Row({
-  label,
-  value,
-  subtle,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  subtle?: boolean;
-  highlight?: boolean;
-}) {
-  return (
-    <Flex justify="between" align="center" pl={subtle ? '4' : '0'}>
-      <Text size="2" color={subtle ? 'gray' : undefined}>
-        {label}
-      </Text>
-      <Text
-        size="2"
-        weight={highlight ? 'bold' : 'medium'}
-        color={highlight ? 'green' : undefined}
-      >
-        {value}
-      </Text>
-    </Flex>
-  );
 }
 
 function EditableRate({
@@ -370,20 +344,24 @@ export default function LoanCalculatorPage() {
               <Row
                 label="Loan amount"
                 value={formatCZK(result.loanPrincipal)}
+                weight="medium"
               />
               <Row
                 label="Monthly payment"
                 value={formatCZK(result.monthlyLoanPayment)}
+                weight="medium"
               />
               <Row
                 label="from savings"
                 value={formatCZK(inputs.savings)}
-                subtle
+                indent
+                weight="medium"
               />
               <Row
                 label="from dividends"
                 value={formatCZK(result.coveredExpense)}
-                subtle
+                indent
+                weight="medium"
               />
             </Flex>
 
@@ -413,36 +391,42 @@ export default function LoanCalculatorPage() {
               <Row
                 label="Investment needed"
                 value={formatCZK(result.loanPrincipal)}
+                weight="medium"
               />
               <Row
                 label="Monthly payment"
                 value={formatCZK(result.monthlyLoanPayment)}
+                weight="medium"
               />
               <Row
                 label="Total interest"
                 value={formatCZK(result.totalInterest)}
+                weight="medium"
               />
               <Row
                 label="Break-even"
                 value={formatDuration(result.breakEvenMonths)}
+                weight="medium"
               />
               <Separator size="4" my="2" />
               <Row
                 label="Post-loan passive income"
                 value={`${formatCZK(result.postLoanMonthlyIncome)}/mo`}
-                highlight
+                color="green"
               />
               {result.dividendSurplus > 0 && (
                 <>
                   <Row
                     label="Extra above expense"
                     value={`${formatCZK(result.dividendSurplus)}/mo`}
-                    subtle
+                    indent
+                    weight="medium"
                   />
                   <Row
                     label="Extra accumulated per year"
                     value={`${formatCZK(result.dividendSurplusYearly)}/yr`}
-                    subtle
+                    indent
+                    weight="medium"
                   />
                 </>
               )}
@@ -450,16 +434,17 @@ export default function LoanCalculatorPage() {
               <Row
                 label="Total accumulated after loan"
                 value={formatCZK(result.totalAccumulated)}
-                highlight
+                color="green"
               />
               <Row
                 label="Savings-only time to same amount"
                 value={formatDuration(result.savingsOnlyMonths)}
+                weight="medium"
               />
               <Row
                 label="Time saved with loan"
                 value={`${result.timeSavedYears.toFixed(1)} years`}
-                highlight
+                color="green"
               />
             </Flex>
           </Flex>

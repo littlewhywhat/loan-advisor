@@ -1,5 +1,4 @@
 import {
-  AlertDialog,
   Badge,
   Button,
   Card,
@@ -7,19 +6,16 @@ import {
   Dialog,
   Flex,
   Heading,
-  Select,
   Text,
   TextField,
 } from '@radix-ui/themes';
 import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import CurrencySelect from '@/components/CurrencySelect';
 import { useEvents } from '@/context/EventProvider';
-import {
-  findOwnerEvent,
-  isEventEditable,
-  ownedEntityNames,
-  todayStr,
-} from '@/lib/eventUtils';
+import { useEntityActions } from '@/hooks/useEntityActions';
+import { findOwnerEvent, isEventEditable, todayStr } from '@/lib/eventUtils';
 import { fmtMoney, formatMoney, formatPct } from '@/lib/format';
 import { computeLoanDerived } from '@/lib/loanCalc';
 import type {
@@ -135,25 +131,26 @@ function emptyLoanForm(): PersonalLoanForm {
 }
 
 export default function LiabilitiesPage() {
-  const {
-    events,
-    derived,
-    archivedDerived,
-    addEvent,
-    updateEvent,
-    archiveEvent,
-    restoreEvent,
-    deleteEvent,
-  } = useEvents();
+  const { events, derived, archivedDerived, addEvent, updateEvent } =
+    useEvents();
 
   const [mortgageDialogOpen, setMortgageDialogOpen] = useState(false);
   const [loanDialogOpen, setLoanDialogOpen] = useState(false);
   const [mortgageForm, setMortgageForm] = useState(emptyMortgageForm);
   const [loanForm, setLoanForm] = useState(emptyLoanForm);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
-  const [archiveTarget, setArchiveTarget] = useState<Liability | null>(null);
-  const [restoreTarget, setRestoreTarget] = useState<Liability | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Liability | null>(null);
+  const {
+    archiveTarget,
+    setArchiveTarget,
+    restoreTarget,
+    setRestoreTarget,
+    deleteTarget,
+    setDeleteTarget,
+    handleArchive,
+    handleRestore,
+    handleDelete,
+    restoreDescription,
+  } = useEntityActions<Liability>();
 
   const openEditMortgage = (event: TakeMortgageEvent) => {
     setEditingEventId(event.id);
@@ -334,31 +331,6 @@ export default function LiabilitiesPage() {
     setLoanDialogOpen(false);
     setLoanForm(emptyLoanForm());
     setEditingEventId(null);
-  };
-
-  const handleArchive = () => {
-    if (!archiveTarget) return;
-    const owner = findOwnerEvent(events, archiveTarget.id);
-    if (owner) archiveEvent(owner.id);
-    setArchiveTarget(null);
-  };
-
-  const handleRestore = () => {
-    if (!restoreTarget) return;
-    const owner = findOwnerEvent(events, restoreTarget.id);
-    if (owner) restoreEvent(owner.id);
-    setRestoreTarget(null);
-  };
-
-  const restoreOwner = restoreTarget
-    ? findOwnerEvent(events, restoreTarget.id)
-    : undefined;
-
-  const handleDelete = () => {
-    if (!deleteTarget) return;
-    const owner = findOwnerEvent(events, deleteTarget.id);
-    if (owner) deleteEvent(owner.id);
-    setDeleteTarget(null);
   };
 
   return (
@@ -708,19 +680,12 @@ export default function LiabilitiesPage() {
                 <Text size="2" weight="medium" mb="1" asChild>
                   <span>Currency</span>
                 </Text>
-                <Select.Root
+                <CurrencySelect
                   value={mortgageForm.currency}
                   onValueChange={(v) =>
-                    setMortgageForm((f) => ({ ...f, currency: v as Currency }))
+                    setMortgageForm((f) => ({ ...f, currency: v }))
                   }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="CZK">CZK</Select.Item>
-                    <Select.Item value="EUR">EUR</Select.Item>
-                    <Select.Item value="USD">USD</Select.Item>
-                  </Select.Content>
-                </Select.Root>
+                />
               </div>
             </Flex>
 
@@ -920,19 +885,12 @@ export default function LiabilitiesPage() {
                 <Text size="2" weight="medium" mb="1" asChild>
                   <span>Currency</span>
                 </Text>
-                <Select.Root
+                <CurrencySelect
                   value={loanForm.currency}
                   onValueChange={(v) =>
-                    setLoanForm((f) => ({ ...f, currency: v as Currency }))
+                    setLoanForm((f) => ({ ...f, currency: v }))
                   }
-                >
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="CZK">CZK</Select.Item>
-                    <Select.Item value="EUR">EUR</Select.Item>
-                    <Select.Item value="USD">USD</Select.Item>
-                  </Select.Content>
-                </Select.Root>
+                />
               </div>
             </Flex>
 
@@ -1010,80 +968,48 @@ export default function LiabilitiesPage() {
         </Dialog.Content>
       </Dialog.Root>
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!archiveTarget}
         onOpenChange={(open) => !open && setArchiveTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Archive Event</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Archive Event"
+        description={
+          <>
             Archiving <strong>{archiveTarget?.name}</strong> will also remove
             the linked asset, expense, and any rental income. Continue?
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleArchive}>
-                Archive
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Archive"
+        actionColor="red"
+        onConfirm={handleArchive}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!restoreTarget}
         onOpenChange={(open) => !open && setRestoreTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Restore Event</AlertDialog.Title>
-          <AlertDialog.Description>
-            This will restore:{' '}
-            <strong>
-              {restoreOwner ? ownedEntityNames(restoreOwner).join(', ') : ''}
-            </strong>
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button onClick={handleRestore}>Restore</Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+        title="Restore Event"
+        description={
+          <>
+            This will restore: <strong>{restoreDescription}</strong>
+          </>
+        }
+        actionLabel="Restore"
+        onConfirm={handleRestore}
+      />
 
-      <AlertDialog.Root
+      <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
-        <AlertDialog.Content maxWidth="400px">
-          <AlertDialog.Title>Delete Liability</AlertDialog.Title>
-          <AlertDialog.Description>
+        title="Delete Liability"
+        description={
+          <>
             Permanently delete <strong>{deleteTarget?.name}</strong> and all
             linked entities? This cannot be undone.
-          </AlertDialog.Description>
-          <Flex gap="3" mt="4" justify="end">
-            <AlertDialog.Cancel>
-              <Button variant="soft" color="gray">
-                Cancel
-              </Button>
-            </AlertDialog.Cancel>
-            <AlertDialog.Action>
-              <Button color="red" onClick={handleDelete}>
-                Delete
-              </Button>
-            </AlertDialog.Action>
-          </Flex>
-        </AlertDialog.Content>
-      </AlertDialog.Root>
+          </>
+        }
+        actionLabel="Delete"
+        actionColor="red"
+        onConfirm={handleDelete}
+      />
     </Flex>
   );
 }

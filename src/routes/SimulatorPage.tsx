@@ -21,6 +21,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import Row from '@/components/Row';
 import StrategyPanel from '@/components/StrategyPanel';
 import { useEvents } from '@/context/EventProvider';
 import { useStrategyLibrary } from '@/hooks/useStrategyLibrary';
@@ -192,57 +193,6 @@ function SimpleChart({
         </LineChart>
       </ResponsiveContainer>
     </Card>
-  );
-}
-
-function Row({
-  label,
-  value,
-  color,
-  indent,
-  strikethrough,
-  badge,
-}: {
-  label: string;
-  value: string;
-  color?: 'green' | 'red' | 'gray';
-  indent?: boolean;
-  strikethrough?: boolean;
-  badge?: string;
-}) {
-  return (
-    <Flex justify="between" align="center" pl={indent ? '4' : '0'}>
-      <Flex align="center" gap="2">
-        <Text
-          size="2"
-          color={indent ? 'gray' : undefined}
-          style={
-            strikethrough
-              ? { textDecoration: 'line-through', opacity: 0.5 }
-              : undefined
-          }
-        >
-          {label}
-        </Text>
-        {badge && (
-          <Badge size="1" variant="soft" color="purple">
-            {badge}
-          </Badge>
-        )}
-      </Flex>
-      <Text
-        size="2"
-        weight="bold"
-        color={color}
-        style={
-          strikethrough
-            ? { textDecoration: 'line-through', opacity: 0.5 }
-            : undefined
-        }
-      >
-        {value}
-      </Text>
-    </Flex>
   );
 }
 
